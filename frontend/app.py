@@ -1,11 +1,9 @@
 import streamlit as st
-import psycopg2  # Importar o driver do PostgreSQL
-from psycopg2.extras import RealDictCursor  # Para retornar resultados como dicionários
-import os  # Importar para acessar variáveis de ambiente
-from dotenv import load_dotenv  # Para carregar .env localmente
-import bcrypt  # Para hash de senhas
-# NÃO precisamos mais de PIL.Image para o logo SVG com esta abordagem
-# from PIL import Image
+import psycopg2
+from psycopg2.extras import RealDictCursor
+import os
+from dotenv import load_dotenv
+import bcrypt
 
 # Carrega as variáveis de ambiente do arquivo .env se rodando localmente
 try:
@@ -20,49 +18,65 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 
 
 # Função que tenta estabelecer uma nova conexão (sem cache)
+# st.cache_resource gerencia o ciclo de vida da conexão para Streamlit
 @st.cache_resource
 def get_db_connection():
     if not DATABASE_URL:
         st.error(
             "Variável de ambiente DATABASE_URL não configurada. Verifique os Secrets do Streamlit Cloud ou seu arquivo .env."
         )
-        st.stop()  # Para a execução do app se a conexão não puder ser estabelecida
+        st.stop()
     try:
-        conn = psycopg2.connect(DATABASE_URL)
-        return conn
+        # Retorna a conexão, o cache_resource a manterá aberta e reutilizável
+        return psycopg2.connect(DATABASE_URL)
     except Exception as e:
         st.error(
             f"Erro ao conectar ao banco de dados: {e}. Verifique a string de conexão."
         )
         st.stop()
-    return None  # Deveria ser inalcançável devido ao st.stop()
-
-
-# --- Funções de Manipulação do Banco de Dados (CRUD para todas as tabelas) ---
-# Função auxiliar para executar operações de BD com gerenciamento de conexão
-def execute_db_operation(func, *args, **kwargs):
-    conn = None
-    try:
-        conn = get_db_connection()
-        if conn:  # Garante que a conexão foi obtida com sucesso
-            result = func(conn, *args, **kwargs)
-            return result
-    except Exception as e:
-        st.error(f"Erro durante a operação de banco de dados: {e}")
-        if conn:
-            conn.rollback()  # Garante que a transação seja desfeita em caso de erro
-    finally:
-        # Em Streamlit com st.cache_resource, a conexão é gerenciada pelo cache.
-        # Não fechamos explicitamente aqui para permitir reuso.
-        pass
     return None
 
 
-# Função para criar tabelas (executada na inicialização do app)
-def _create_tables_if_not_exists(conn):
-    cur = conn.cursor()
+# --- Funções de Manipulação do Banco de Dados (CRUD para todas as tabelas) ---
+# Função auxiliar para executar operações de BD com gerenciamento de transação e conexão
+def execute_db_operation(operation_func, *args, **kwargs):
+    """
+    Executa uma operação de banco de dados dentro de um bloco de transação.
+    Utiliza o padrão 'with' para garantir que a conexão e o cursor
+    sejam gerenciados e fechados corretamente, e que as transações
+    (commit/rollback) sejam tratadas automaticamente.
+    """
+    conn = get_db_connection()  # Obtém a conexão do cache
+    if conn is None:
+        return {"error": "Sem conexão com o banco de dados."}
+
     try:
-        cur.execute("""
+        # O 'with' statement para a conexão garante que conn.commit() ou conn.rollback()
+        # sejam chamados automaticamente ao sair do bloco, e a conexão é gerenciada.
+        # Para st.cache_resource, a conexão não é fechada, mas a transação é concluída.
+        with conn:  # Usa a conexão como um context manager
+            with conn.cursor() as cur:  # O cursor também é um context manager
+                result = operation_func(cur, *args, **kwargs)
+                return result
+    except psycopg2.Error as e:
+        st.error(f"Erro no banco de dados: {e}")
+        st.exception(e)  # Para depuração detalhada no Streamlit Cloud
+        return {"error": str(e)}
+    except Exception as e:
+        st.error(
+            f"Ocorreu um erro inesperado durante a operação de banco de dados: {e}"
+        )
+        st.exception(e)
+        return {"error": str(e)}
+
+
+# Função para criar tabelas (executada na inicialização do app)
+def _create_tables_if_not_exists(cur):
+    """
+    Função interna para criar tabelas se não existirem.
+    Recebe um objeto cursor como argumento.
+    """
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             email VARCHAR(255) UNIQUE NOT NULL,
@@ -128,6 +142,7 @@ def _create_tables_if_not_exists(conn):
         );
         CREATE TABLE IF NOT EXISTS project_services (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            project_id UUID NOT NULL,
             name VARCHAR(255) NOT NULL,
             duration VARCHAR(50),
             start_date DATE NOT NULL,
@@ -220,15 +235,8 @@ def _create_tables_if_not_exists(conn):
             FOREIGN KEY (team_member_id) REFERENCES team_members(id) ON DELETE CASCADE,
             assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
         );
-        """)
-        conn.commit()
-        # st.success("Tabelas verificadas/criadas com sucesso!") # Comentado para evitar flood de msg
-    except Exception as e:
-        st.error(f"Erro ao criar/verificar tabelas: {e}")
-        conn.rollback()
-    finally:
-        if cur:
-            cur.close()
+    """)
+    st.success("Tabelas verificadas/criadas com sucesso!")  # Mensagem de sucesso
 
 
 def create_tables_if_not_exists_wrapper():
@@ -240,64 +248,41 @@ create_tables_if_not_exists_wrapper()
 
 
 # --- AUTENTICAÇÃO ---
-def register_user_db(name, email, password, role="Usuário"):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        # bcrypt.hashpw espera bytes, então codificamos a senha
-        hashed_password = bcrypt.hashpw(
-            password.encode("utf-8"), bcrypt.gensalt()
-        ).decode("utf-8")
-        cur.execute(
-            """INSERT INTO users (email, password_hash, name, role)
-               VALUES (%s, %s, %s, %s) RETURNING id;""",
-            (email, hashed_password, name, role),
-        )
-        user_id = cur.fetchone()[0]
-        conn.commit()
-        return {"message": "Usuário registrado com sucesso", "id": str(user_id)}
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Email já registrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def register_user_db(cur, name, email, password, role="Usuário"):
+    hashed_password = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode(
+        "utf-8"
+    )
+    cur.execute(
+        """INSERT INTO users (email, password_hash, name, role)
+           VALUES (%s, %s, %s, %s) RETURNING id;""",
+        (email, hashed_password, name, role),
+    )
+    user_id = cur.fetchone()[0]
+    return {"message": "Usuário registrado com sucesso", "id": str(user_id)}
 
 
-def login_user_db(email, password):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute(
-            "SELECT id, email, password_hash, name, role FROM users WHERE email = %s;",
-            (email,),
-        )
-        user = cur.fetchone()
-        if user and bcrypt.checkpw(
-            password.encode("utf-8"), user["password_hash"].encode("utf-8")
-        ):
-            return {
-                "message": "Login bem-sucedido",
-                "user_id": str(user["id"]),
-                "user_name": user["name"],
-                "user_role": user["role"],
-            }
-        else:
-            return {"error": "Email ou senha inválidos."}
-    except Exception as e:
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def login_user_db(cur, email, password):
+    cur.execute(
+        "SELECT id, email, password_hash, name, role FROM users WHERE email = %s;",
+        (email,),
+    )
+    user = cur.fetchone()
+    if user and bcrypt.checkpw(
+        password.encode("utf-8"), user["password_hash"].encode("utf-8")
+    ):
+        return {
+            "message": "Login bem-sucedido",
+            "user_id": str(user["id"]),
+            "user_name": user["name"],
+            "user_role": user["role"],
+        }
+    else:
+        return {"error": "Email ou senha inválidos."}
 
 
 # --- Funções CRUD para Fornecedores ---
 def add_supplier_db(
+    cur,
     name,
     contact,
     cnpj_cpf=None,
@@ -306,394 +291,201 @@ def add_supplier_db(
     delivery_time=None,
     payment_terms=None,
 ):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO suppliers (name, cnpj_cpf, contact, address, notes, delivery_time, payment_terms)
-               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
-            (name, cnpj_cpf, contact, address, notes, delivery_time, payment_terms),
-        )
-        supplier_id = cur.fetchone()[0]
-        conn.commit()
-        return {"message": "Fornecedor adicionado com sucesso", "id": str(supplier_id)}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    cur.execute(
+        """INSERT INTO suppliers (name, cnpj_cpf, contact, address, notes, delivery_time, payment_terms)
+           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
+        (name, cnpj_cpf, contact, address, notes, delivery_time, payment_terms),
+    )
+    supplier_id = cur.fetchone()[0]
+    return {"message": "Fornecedor adicionado com sucesso", "id": str(supplier_id)}
 
 
-def get_suppliers_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT * FROM suppliers ORDER BY name;")
-        suppliers = cur.fetchall()
-        return suppliers
-    except Exception as e:
-        st.error(f"Erro ao obter fornecedores: {e}")
-        return []
-    finally:
-        cur.close()
+def get_suppliers_db(cur):
+    cur.execute("SELECT * FROM suppliers ORDER BY name;")
+    suppliers = cur.fetchall()
+    return suppliers
 
 
-def update_supplier_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
+def update_supplier_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
 
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
 
-        values.append(id)
-        query = (
-            f"UPDATE suppliers SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        )
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Fornecedor atualizado com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Fornecedor não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    values.append(id)
+    query = f"UPDATE suppliers SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
+        return {
+            "message": "Fornecedor atualizado com sucesso",
+            "id": str(updated_id[0]),
+        }
+    return {"error": "Fornecedor não encontrado."}
 
 
-def delete_supplier_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM suppliers WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {
-                "message": "Fornecedor deletado com sucesso",
-                "id": str(deleted_id[0]),
-            }
-        return {"error": "Fornecedor não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_supplier_db(cur, id):
+    cur.execute("DELETE FROM suppliers WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {"message": "Fornecedor deletado com sucesso", "id": str(deleted_id[0])}
+    return {"error": "Fornecedor não encontrado."}
 
 
 # --- Funções CRUD para Categorias de Custo ---
-def add_cost_category_db(name, description=None):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO cost_categories (name, description)
-               VALUES (%s, %s) RETURNING id;""",
-            (name, description),
-        )
-        category_id = cur.fetchone()[0]
-        conn.commit()
+def add_cost_category_db(cur, name, description=None):
+    cur.execute(
+        """INSERT INTO cost_categories (name, description)
+           VALUES (%s, %s) RETURNING id;""",
+        (name, description),
+    )
+    category_id = cur.fetchone()[0]
+    return {
+        "message": "Categoria de custo adicionada com sucesso",
+        "id": str(category_id),
+    }
+
+
+def get_cost_categories_db(cur):
+    cur.execute("SELECT * FROM cost_categories ORDER BY name;")
+    categories = cur.fetchall()
+    return categories
+
+
+def update_cost_category_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
+
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
+
+    values.append(id)
+    query = f"UPDATE cost_categories SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
         return {
-            "message": "Categoria de custo adicionada com sucesso",
-            "id": str(category_id),
+            "message": "Categoria de custo atualizada com sucesso",
+            "id": str(updated_id[0]),
         }
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Categoria com este nome já existe."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    return {"error": "Categoria de custo não encontrada."}
 
 
-def get_cost_categories_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT * FROM cost_categories ORDER BY name;")
-        categories = cur.fetchall()
-        return categories
-    except Exception as e:
-        st.error(f"Erro ao obter categorias de custo: {e}")
-        return []
-    finally:
-        cur.close()
-
-
-def update_cost_category_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
-
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
-
-        values.append(id)
-        query = f"UPDATE cost_categories SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Categoria de custo atualizada com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Categoria de custo não encontrada."}
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Categoria com este nome já existe."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
-
-
-def delete_cost_category_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM cost_categories WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {
-                "message": "Categoria de custo deletada com sucesso",
-                "id": str(deleted_id[0]),
-            }
-        return {"error": "Categoria de custo não encontrada."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_cost_category_db(cur, id):
+    cur.execute("DELETE FROM cost_categories WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {
+            "message": "Categoria de custo deletada com sucesso",
+            "id": str(deleted_id[0]),
+        }
+    return {"error": "Categoria de custo não encontrada."}
 
 
 # --- Funções CRUD para Unidades de Medida ---
-def add_unit_of_measure_db(name):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO units_of_measure (name)
-               VALUES (%s) RETURNING id;""",
-            (name,),
-        )
-        unit_id = cur.fetchone()[0]
-        conn.commit()
+def add_unit_of_measure_db(cur, name):
+    cur.execute(
+        """INSERT INTO units_of_measure (name)
+           VALUES (%s) RETURNING id;""",
+        (name,),
+    )
+    unit_id = cur.fetchone()[0]
+    return {"message": "Unidade de medida adicionada com sucesso", "id": str(unit_id)}
+
+
+def get_units_of_measure_db(cur):
+    cur.execute("SELECT * FROM units_of_measure ORDER BY name;")
+    units = cur.fetchall()
+    return units
+
+
+def update_unit_of_measure_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
+
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
+
+    values.append(id)
+    query = f"UPDATE units_of_measure SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
         return {
-            "message": "Unidade de medida adicionada com sucesso",
-            "id": str(unit_id),
+            "message": "Unidade de medida atualizada com sucesso",
+            "id": str(updated_id[0]),
         }
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Unidade de medida com este nome já existe."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    return {"error": "Unidade de medida não encontrada."}
 
 
-def get_units_of_measure_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT * FROM units_of_measure ORDER BY name;")
-        units = cur.fetchall()
-        return units
-    except Exception as e:
-        st.error(f"Erro ao obter unidades de medida: {e}")
-        return []
-    finally:
-        cur.close()
-
-
-def update_unit_of_measure_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
-
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
-
-        values.append(id)
-        query = f"UPDATE units_of_measure SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Unidade de medida atualizada com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Unidade de medida não encontrada."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
-
-
-def delete_unit_of_measure_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM units_of_measure WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {
-                "message": "Unidade de medida deletada com sucesso",
-                "id": str(deleted_id[0]),
-            }
-        return {"error": "Unidade de medida não encontrada."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_unit_of_measure_db(cur, id):
+    cur.execute("DELETE FROM units_of_measure WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {
+            "message": "Unidade de medida deletada com sucesso",
+            "id": str(deleted_id[0]),
+        }
+    return {"error": "Unidade de medida não encontrada."}
 
 
 # --- Funções CRUD para Clientes ---
-def add_client_db(name, contact=None, cnpj=None, address=None, notes=None):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO clients (name, contact, cnpj, address, notes)
-               VALUES (%s, %s, %s, %s, %s) RETURNING id;""",
-            (name, contact, cnpj, address, notes),
-        )
-        client_id = cur.fetchone()[0]
-        conn.commit()
-        return {"message": "Cliente adicionado com sucesso", "id": str(client_id)}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def add_client_db(cur, name, contact=None, cnpj=None, address=None, notes=None):
+    cur.execute(
+        """INSERT INTO clients (name, contact, cnpj, address, notes)
+           VALUES (%s, %s, %s, %s, %s) RETURNING id;""",
+        (name, contact, cnpj, address, notes),
+    )
+    client_id = cur.fetchone()[0]
+    return {"message": "Cliente adicionado com sucesso", "id": str(client_id)}
 
 
-def get_clients_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT * FROM clients ORDER BY name;")
-        clients = cur.fetchall()
-        return clients
-    except Exception as e:
-        st.error(f"Erro ao obter clientes: {e}")
-        return []
-    finally:
-        cur.close()
+def get_clients_db(cur):
+    cur.execute("SELECT * FROM clients ORDER BY name;")
+    clients = cur.fetchall()
+    return clients
 
 
-def update_client_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
+def update_client_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
 
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
 
-        values.append(id)
-        query = (
-            f"UPDATE clients SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        )
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Cliente atualizado com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Cliente não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    values.append(id)
+    query = f"UPDATE clients SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
+        return {"message": "Cliente atualizado com sucesso", "id": str(updated_id[0])}
+    return {"error": "Cliente não encontrado."}
 
 
-def delete_client_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM clients WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {"message": "Cliente deletado com sucesso", "id": str(deleted_id[0])}
-        return {"error": "Cliente não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_client_db(cur, id):
+    cur.execute("DELETE FROM clients WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {"message": "Cliente deletado com sucesso", "id": str(deleted_id[0])}
+    return {"error": "Cliente não encontrado."}
 
 
 # --- Funções CRUD para Membros da Equipe ---
 def add_team_member_db(
+    cur,
     name,
     email,
     role=None,
@@ -703,105 +495,59 @@ def add_team_member_db(
     access_level=None,
     notes=None,
 ):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO team_members (name, role, email, phone, cpf, hiring_date, access_level, notes)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
-            (name, role, email, phone, cpf, hiring_date, access_level, notes),
-        )
-        member_id = cur.fetchone()[0]
-        conn.commit()
+    cur.execute(
+        """INSERT INTO team_members (name, role, email, phone, cpf, hiring_date, access_level, notes)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
+        (name, role, email, phone, cpf, hiring_date, access_level, notes),
+    )
+    member_id = cur.fetchone()[0]
+    return {"message": "Membro da equipe adicionado com sucesso", "id": str(member_id)}
+
+
+def get_team_members_db(cur):
+    cur.execute("SELECT * FROM team_members ORDER BY name;")
+    members = cur.fetchall()
+    return members
+
+
+def update_team_member_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
+
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
+
+    values.append(id)
+    query = (
+        f"UPDATE team_members SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    )
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
         return {
-            "message": "Membro da equipe adicionado com sucesso",
-            "id": str(member_id),
+            "message": "Membro da equipe atualizado com sucesso",
+            "id": str(updated_id[0]),
         }
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Email já registrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    return {"error": "Membro da equipe não encontrado."}
 
 
-def get_team_members_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("SELECT * FROM team_members ORDER BY name;")
-        members = cur.fetchall()
-        return members
-    except Exception as e:
-        st.error(f"Erro ao obter membros da equipe: {e}")
-        return []
-    finally:
-        cur.close()
-
-
-def update_team_member_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
-
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
-
-        values.append(id)
-        query = f"UPDATE team_members SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Membro da equipe atualizado com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Membro da equipe não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
-
-
-def delete_team_member_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM team_members WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {
-                "message": "Membro da equipe deletado com sucesso",
-                "id": str(deleted_id[0]),
-            }
-        return {"error": "Membro da equipe não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_team_member_db(cur, id):
+    cur.execute("DELETE FROM team_members WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {
+            "message": "Membro da equipe deletado com sucesso",
+            "id": str(deleted_id[0]),
+        }
+    return {"error": "Membro da equipe não encontrado."}
 
 
 # --- Funções CRUD para Projetos ---
 def add_project_db(
+    cur,
     name,
     client_id,
     address,
@@ -810,127 +556,70 @@ def add_project_db(
     status="Em Planejamento",
     budget=None,
 ):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute(
-            """INSERT INTO projects (name, client_id, address, start_date, end_date, status, budget)
-               VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
-            (name, client_id, address, start_date, end_date, status, budget),
-        )
-        project_id = cur.fetchone()[0]
-        conn.commit()
-        return {"message": "Projeto adicionado com sucesso", "id": str(project_id)}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    cur.execute(
+        """INSERT INTO projects (name, client_id, address, start_date, end_date, status, budget)
+           VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
+        (name, client_id, address, start_date, end_date, status, budget),
+    )
+    project_id = cur.fetchone()[0]
+    return {"message": "Projeto adicionado com sucesso", "id": str(project_id)}
 
 
-def get_projects_db():
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute("""
-            SELECT p.*, c.name as client_name
-            FROM projects p
-            JOIN clients c ON p.client_id = c.id
-            ORDER BY p.name;
-        """)
-        projects = cur.fetchall()
-        return projects
-    except Exception as e:
-        st.error(f"Erro ao obter projetos: {e}")
-        return []
-    finally:
-        cur.close()
+def get_projects_db(cur):
+    cur.execute("""
+        SELECT p.*, c.name as client_name
+        FROM projects p
+        JOIN clients c ON p.client_id = c.id
+        ORDER BY p.name;
+    """)
+    projects = cur.fetchall()
+    return projects
 
 
-def get_project_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return None
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        cur.execute(
-            """
-            SELECT p.*, c.name as client_name
-            FROM projects p
-            JOIN clients c ON p.client_id = c.id
-            WHERE p.id = %s;
-        """,
-            (id,),
-        )
-        project = cur.fetchone()
-        return project
-    except Exception as e:
-        st.error(f"Erro ao obter projeto: {e}")
-        return None
-    finally:
-        cur.close()
+def get_project_db(cur, id):
+    cur.execute(
+        """
+        SELECT p.*, c.name as client_name
+        FROM projects p
+        JOIN clients c ON p.client_id = c.id
+        WHERE p.id = %s;
+    """,
+        (id,),
+    )
+    project = cur.fetchone()
+    return project
 
 
-def update_project_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
+def update_project_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
 
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
 
-        values.append(id)
-        query = (
-            f"UPDATE projects SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        )
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Projeto atualizado com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Projeto não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    values.append(id)
+    query = f"UPDATE projects SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
+        return {"message": "Projeto atualizado com sucesso", "id": str(updated_id[0])}
+    return {"error": "Projeto não encontrado."}
 
 
-def delete_project_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM projects WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {"message": "Projeto deletado com sucesso", "id": str(deleted_id[0])}
-        return {"error": "Projeto não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_project_db(cur, id):
+    cur.execute("DELETE FROM projects WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {"message": "Projeto deletado com sucesso", "id": str(deleted_id[0])}
+    return {"error": "Projeto não encontrado."}
 
 
 # --- Funções CRUD para Serviços/Tarefas do Projeto ---
 def add_project_service_db(
+    cur,
     project_id,
     name,
     duration,
@@ -941,114 +630,71 @@ def add_project_service_db(
     unit=None,
     measure=None,
 ):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
+    cur.execute(
+        """INSERT INTO project_services (project_id, name, duration, start_date, end_date, progress, cost, unit, measure)
+           VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
+        (
+            project_id,
+            name,
+            duration,
+            start_date,
+            end_date,
+            progress,
+            cost,
+            unit,
+            measure,
+        ),
+    )
+    service_id = cur.fetchone()[0]
+    return {
+        "message": "Serviço do projeto adicionado com sucesso",
+        "id": str(service_id),
+    }
+
+
+def get_project_services_db(cur, project_id=None):
+    if project_id:
         cur.execute(
-            """INSERT INTO project_services (project_id, name, duration, start_date, end_date, progress, cost, unit, measure)
-               VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id;""",
-            (
-                project_id,
-                name,
-                duration,
-                start_date,
-                end_date,
-                progress,
-                cost,
-                unit,
-                measure,
-            ),
+            "SELECT * FROM project_services WHERE project_id = %s ORDER BY name;",
+            (project_id,),
         )
-        service_id = cur.fetchone()[0]
-        conn.commit()
+    else:
+        cur.execute("SELECT * FROM project_services ORDER BY name;")
+    services = cur.fetchall()
+    return services
+
+
+def update_project_service_db(cur, id, updates):
+    set_clauses = []
+    values = []
+    for key, value in updates.items():
+        set_clauses.append(f"{key} = %s")
+        values.append(value)
+
+    if not set_clauses:
+        return {"error": "Nenhum dado fornecido para atualização."}
+
+    values.append(id)
+    query = f"UPDATE project_services SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
+    cur.execute(query, values)
+    updated_id = cur.fetchone()
+    if updated_id:
         return {
-            "message": "Serviço do projeto adicionado com sucesso",
-            "id": str(service_id),
+            "message": "Serviço do projeto atualizado com sucesso",
+            "id": str(updated_id[0]),
         }
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+    return {"error": "Serviço do projeto não encontrado."}
 
 
-def get_project_services_db(project_id=None):
-    conn = get_db_connection()
-    if not conn:
-        return []
-    cur = conn.cursor(cursor_factory=RealDictCursor)
-    try:
-        if project_id:
-            cur.execute(
-                "SELECT * FROM project_services WHERE project_id = %s ORDER BY name;",
-                (project_id,),
-            )
-        else:
-            cur.execute("SELECT * FROM project_services ORDER BY name;")
-        services = cur.fetchall()
-        return services
-    except Exception as e:
-        st.error(f"Erro ao obter serviços do projeto: {e}")
-        return []
-    finally:
-        cur.close()
-
-
-def update_project_service_db(id, updates):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        set_clauses = []
-        values = []
-        for key, value in updates.items():
-            set_clauses.append(f"{key} = %s")
-            values.append(value)
-
-        if not set_clauses:
-            return {"error": "Nenhum dado fornecido para atualização."}
-
-        values.append(id)
-        query = f"UPDATE project_services SET {', '.join(set_clauses)} WHERE id = %s RETURNING id;"
-        cur.execute(query, values)
-        updated_id = cur.fetchone()
-        conn.commit()
-        if updated_id:
-            return {
-                "message": "Serviço do projeto atualizado com sucesso",
-                "id": str(updated_id[0]),
-            }
-        return {"error": "Serviço do projeto não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
-
-
-def delete_project_service_db(id):
-    conn = get_db_connection()
-    if not conn:
-        return {"error": "Sem conexão com o BD."}
-    cur = conn.cursor()
-    try:
-        cur.execute("DELETE FROM project_services WHERE id = %s RETURNING id;", (id,))
-        deleted_id = cur.fetchone()
-        conn.commit()
-        if deleted_id:
-            return {
-                "message": "Serviço do projeto deletado com sucesso",
-                "id": str(deleted_id[0]),
-            }
-        return {"error": "Serviço do projeto não encontrado."}
-    except Exception as e:
-        conn.rollback()
-        return {"error": str(e)}
-    finally:
-        cur.close()
+def delete_project_service_db(cur, id):
+    cur.execute("DELETE FROM project_services WHERE id = %s RETURNING id;", (id,))
+    deleted_id = cur.fetchone()
+    if deleted_id:
+        return {
+            "message": "Serviço do projeto deletado com sucesso",
+            "id": str(deleted_id[0]),
+        }
+    return {"error": "Serviço do projeto não encontrado."}
 
 
 # --- Funções CRUD para Documentos do Projeto ---
@@ -1904,11 +1550,7 @@ st.markdown(
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #CF1219; /* Títulos em cor de destaque */
     }
-    .logo-img {
-        max-width: 150px; /* Ajuste o tamanho do logo */
-        height: auto;
-        margin-bottom: 20px;
-    }
+    /* Removido .logo-img para usar apenas texto */
     .logo-text { /* Mantido para fallback */
         color: #CF1219;
         font-size: 3em;
@@ -1949,11 +1591,9 @@ def show_login_page():
         '<div class="login-container">', unsafe_allow_html=True
     )  # Container do formulário dentro da coluna
 
-    # Adiciona o logo aqui (SVG injetado diretamente)
-    # Caminho para o arquivo SVG no GitHub
-    logo_svg_url = "https://raw.githubusercontent.com/LucasEscarabote/software-monitoramento-obras/main/assets/logo.svg"
+    # Substituído o logo SVG pelo nome do sistema
     st.markdown(
-        f'<img src="{logo_svg_url}" class="logo-img" alt="Logo">',
+        '<div class="logo-text">Software<span style="color: #333333;">Obras</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -1977,12 +1617,12 @@ def show_login_page():
     with col1:
         if st.button("Entrar", key="login_button"):
             if email and password:
-                result = login_user_db(email, password)  # Chama a função DB diretamente
+                result = execute_db_operation(login_user_db, email, password)
                 if "user_id" in result:
                     st.session_state.logged_in = True
                     st.session_state.user_info = result
                     st.success(f"Bem-vindo, {result.get('user_name', 'usuário')}!")
-                    st.rerun()  # Força o Streamlit a re-executar e mostrar a página principal
+                    st.rerun()
                 else:
                     st.error(result.get("error", "Erro ao fazer login."))
             else:
@@ -2016,10 +1656,9 @@ def show_register_page():
         '<div class="login-container">', unsafe_allow_html=True
     )  # Container do formulário dentro da coluna
 
-    # Adiciona o logo aqui (SVG injetado diretamente)
-    logo_svg_url = "https://raw.githubusercontent.com/LucasEscarabote/software-monitoramento-obras/main/assets/logo.svg"
+    # Substituído o logo SVG pelo nome do sistema
     st.markdown(
-        f'<img src="{logo_svg_url}" class="logo-img" alt="Logo">',
+        '<div class="logo-text">Software<span style="color: #333333;">Obras</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -2044,9 +1683,7 @@ def show_register_page():
         elif not name or not email or not password:
             st.warning("Por favor, preencha todos os campos.")
         else:
-            result = register_user_db(
-                name, email, password
-            )  # Chama a função DB diretamente
+            result = execute_db_operation(register_user_db, name, email, password)
             if "id" in result:
                 st.success("Conta criada com sucesso! Você pode fazer login agora.")
                 st.session_state.show_register = False  # Volta para a tela de login
@@ -2087,8 +1724,6 @@ def show_main_app_page():
         )
         st.rerun()
 
-    # Adicione aqui os componentes e layouts das outras páginas (Painel, Projetos, etc.)
-    # Por exemplo, você pode usar st.sidebar para navegação ou st.tabs
     st.subheader("Funcionalidades Disponíveis (Esqueleto)")
     st.write("- Painel de Visão Geral")
     st.write("- Gestão de Projetos")
