@@ -1,0 +1,2393 @@
+import React, { useState, useMemo, useCallback, useRef, useEffect } from "react";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, PieChart, Pie, Cell, AreaChart, Area, Sector } from "recharts";
+import { LayoutDashboard, Briefcase, Bell, User, Plus, Search, Eye, ArrowLeft, ArrowRight, FileText, CalendarDays, DollarSign, Settings, LogOut, FileDown, X, Upload, Sun, Cloud, Users, TrendingUp, AlertTriangle, CheckCircle, BookOpen, GanttChartSquare, Wallet, ListChecks, Banknote, HardHat, Building, Clock, ChevronDown, MoreVertical, Edit, Trash2, Filter, ChevronLeft, ChevronRight, MessageSquare, CloudRain, QrCode } from "lucide-react";
+
+// --- DADOS MOCKADOS (Simulando o banco de dados) ---
+// Estes dados simulam um banco de dados e são usados em toda a aplicação.
+const initialProjectsData = [
+  {
+    id: 1,
+    name: "Obra - Família Simões",
+    client: "R2K Proteção Coletiva",
+    address: "Rua das Flores, 123, Bairro Jardim, São Paulo - SP",
+    startDate: "2025-06-09",
+    endDate: "2025-08-26",
+    status: "Ongoing",
+    budget: 50000,
+    team: [{id: 1, name: 'Ana', avatar: 'A'}, {id: 2, name: 'Bruno', avatar: 'B'}, {id: 3, name: 'Carlos', avatar: 'C'}],
+    services: [
+      { id: 1, name: "Mobilização", duration: "7 dias", startDate: "2025-06-09", endDate: "2025-06-17", progress: 100, cost: 3000, unit: "etapa", measure: 1 },
+      { id: 2, name: "Montagem Mezanino", duration: "20 dias", startDate: "2025-06-19", endDate: "2025-07-16", progress: 80, cost: 12000, unit: "m²", measure: 150 },
+      { id: 3, name: "Hidráulica", duration: "3 dias", startDate: "2025-07-21", endDate: "2025-07-23", progress: 50, cost: 8000, unit: "pontos", measure: 20 },
+      { id: 4, name: "Elétrica", duration: "3 dias", startDate: "2025-07-18", endDate: "2025-07-22", progress: 60, cost: 7000, unit: "pontos", measure: 30 },
+      { id: 5, name: "Acabamentos", duration: "24 dias", startDate: "2025-07-24", endDate: "2025-08-26", progress: 20, cost: 20000, unit: "m²", measure: 200 },
+    ],
+    documents: [
+      { id: 1, name: "Planta Baixa.pdf", type: "Projeto", date: "2025-06-01", size: "2.5 MB", versions: [{id:1, date: "2025-06-01", user: "João Silva", notes: "Versão inicial"}, {id:2, date: "2025-06-10", user: "Pedro Lima", notes: "Alteração layout"},] },
+      { id: 2, name: "Alvará de Construção.pdf", type: "Licença", date: "2025-06-05", size: "800 KB", versions: [{id:1, date: "2025-06-05", user: "João Silva", notes: "Versão final"}] },
+    ],
+    dailyLogs: [
+      { id: 1, date: "2025-07-15", weather: "Ensolarado", personnel: "8 operários, 1 encarregado", notes: "Observações gerais do dia: Sem intercorrências.", materialsReceived: "Conduítes (200m), Fios (500m)", equipmentUsed: "Furadeira, Serra Tico-tico", occurrences: "Pequeno atraso na entrega de fios, resolvido no dia seguinte.", costs: [], activities: [{id:1, step: "Elétrica", type: "Em Andamento", quantity: 50, unit: "m", obs: "Passagem de cabos de força."}], photos: [], location: { lat: -23.5505, lon: -46.6333 } },
+      { id: 2, date: "2025-07-16", weather: "Nublado", personnel: "6 operários, 1 encarregado", notes: "Observações gerais do dia: Equipe focada na laje.", materialsReceived: "Tubos PVC (100m), Conexões (50un)", equipmentUsed: "Martelete, Nível a laser", occurrences: "Sem ocorrências relevantes.", costs: [], activities: [{id:1, step: "Hidráulica", type: "Iniciada", quantity: 10, unit: "pontos", obs: "Instalação de pontos de água no banheiro 1."}], photos: [], location: { lat: -23.5506, lon: -46.6334 } },
+      { id: 3, date: "2025-07-17", weather: "Nublado", personnel: "2 pedreiros, 1 gesseiro", notes: "Observações gerais do dia: Foco nas divisórias internas.", materialsReceived: "Cimento CPII (15 sacos)", equipmentUsed: "Betoneira, andaime", occurrences: "Chuva leve no início da manhã atrasou 1h o início dos serviços.", costs: [{description: "15 sacos de cimento CPII", value: 960, category: "Material", associatedStep: "Elevação de alvenaria"}, {description: "Serviço de demolição", value: 1200, category: "Serviço", associatedStep: "Demolição de forro"}], activities: [{id:1, step: "Demolição de forro", type: "Concluída", quantity: 1, unit: "etapa", obs: ""}, {id:2, step: "Elevação de alvenaria", type: "Iniciada", quantity: 20, unit: "m", obs: "Alvenaria das suítes."},{id:3, step: "Paredes drywall", type: "Iniciada", quantity: 10, unit: "m²", obs: "Início das paredes do corredor."}], photos: [], location: { lat: -23.5507, lon: -46.6335 } }
+    ],
+  },
+  {
+    id: 2,
+    name: "Edifício Alfa",
+    client: "Construtora XYZ",
+    address: "Avenida Brasil, 1000, Centro, Rio de Janeiro - RJ",
+    startDate: "2025-05-01",
+    endDate: "2026-08-15",
+    status: "Ongoing",
+    budget: 2500000,
+    team: [{id: 4, name: 'Daniel', avatar: 'D'}, {id: 5, name: 'Eduarda', avatar: 'E'}],
+    services: [
+      { id: 1, name: "Terraplanagem", duration: "45 dias", startDate: "2025-05-01", endDate: "2025-06-15", progress: 100, cost: 500000, unit: "m³", measure: 5000 },
+      { id: 2, name: "Estrutura", duration: "258 dias", startDate: "2025-06-16", endDate: "2026-02-28", progress: 40, cost: 1500000, unit: "ton", measure: 1000 },
+    ],
+    documents: [],
+    dailyLogs: [],
+  },
+  {
+    id: 3,
+    name: "Reforma Comercial",
+    client: "Lojas Varejo",
+    address: "Rua do Comércio, 500, Centro, Belo Horizonte - MG",
+    startDate: "2025-07-01",
+    endDate: "2025-07-30",
+    status: "Completed",
+    budget: 50000,
+    team: [{id: 1, name: 'Ana', avatar: 'A'}],
+    services: [
+        { id: 1, name: "Execução Completa", duration: "30 dias", startDate: "2025-07-01", endDate: "2025-07-30", progress: 100, cost: 48000, unit: "etapa", measure: 1 }
+    ],
+    documents: [],
+    dailyLogs: [],
+  },
+];
+
+const mockClientsData = [
+    { id: 1, name: "R2K Proteção Coletiva", contact: "contato@r2k.com", projects: 1, cnpj: "00.000.000/0001-00", address: "Rua Exemplo, 123, Cidade, Estado", notes: "Cliente de longa data, bom pagador." },
+    { id: 2, name: "Construtora XYZ", contact: "compras@xyz.com.br", projects: 1, cnpj: "11.111.111/0001-11", address: "Av. Principal, 456, Cidade, Estado", notes: "Parceria em projetos de grande porte." },
+    { id: 3, name: "Lojas Varejo", contact: "engenharia@varejo.com", projects: 1, cnpj: "22.222.222/0001-22", address: "Shopping Center, Loja 10, Cidade, Estado", notes: "Novo cliente, focado em reformas rápidas." },
+];
+
+const mockTeamData = [
+  { id: 1, name: "João Silva", role: "Engenheiro Civil", email: "joao.s@example.com", phone: "(11) 98765-4321", cpf: "123.456.789-00", hiringDate: "2020-03-15", accessLevel: "Administrador", notes: "Líder técnico, responsável por orçamentos." },
+  { id: 2, name: "Maria Souza", role: "Mestre de Obras", email: "maria.s@example.com", phone: "(11) 99876-5432", cpf: "098.765.432-11", hiringDate: "2018-01-20", accessLevel: "Gerente de Projeto", notes: "Experiência em campo, gerencia equipes." },
+  { id: 3, name: "Pedro Lima", role: "Arquiteto", email: "pedro.l@example.com", phone: "(11) 97654-3210", cpf: "123.123.123-22", hiringDate: "2021-06-01", accessLevel: "Operário", notes: "Foco em design e acompanhamento estético." },
+  { id: 4, name: "Ana Paula", role: "Técnica de Segurança", email: "ana.p@example.com", phone: "(11) 96543-2109", cpf: "321.321.321-33", hiringDate: "2022-09-10", accessLevel: "Operário", notes: "Responsável por fiscalizar normas de segurança." },
+];
+
+const mockSuppliersData = [
+  { id: 1, name: "Cimento Fortes", contact: "vendas@cimento.com", materials: "Cimento, Argamassa", cnpj: "33.333.333/0001-33", address: "Rua do Cimento, 50, Indústria, SP", notes: "Fornecedor principal de cimento.", deliveryTime: "3 dias úteis", paymentTerms: "30 dias" },
+  { id: 2, name: "Ferragens & Cia", contact: "contato@ferragens.com", materials: "Ferro, Aço, Vergalhões", cnpj: "44.444.444/0001-44", address: "Av. Metais, 100, Centro, SP", notes: "Bom preço para grandes volumes.", deliveryTime: "5 dias úteis", paymentTerms: "À vista" },
+  { id: 3, name: "Madeireira Central", contact: "orcamento@madeira.com", materials: "Madeira, Compensado", cnpj: "55.555.555/0001-55", address: "Estrada da Madeira, 200, Rural, SP", notes: "Especializada em madeiras de lei.", deliveryTime: "7 dias úteis", paymentTerms: "45 dias" },
+];
+
+const monthlyBudgetConsumptionData = [
+  { month: 'Jan', value: 20 },
+  { month: 'Fev', value: 30 },
+  { month: 'Mar', value: 25 },
+  { month: 'Abr', value: 40 },
+  { month: 'Mai', value: 70 },
+  { month: 'Jun', value: 55 },
+  { month: 'Jul', value: 45 },
+  { month: 'Ago', value: 35 },
+  { month: 'Set', value: 28 },
+];
+
+const mockTeamMembers = [
+    { id: 1, name: 'John Malkovich', email: 'john.m@example.com', invited: true },
+    { id: 2, name: 'Jimmy Hendrix', email: 'jimmy.h@example.com', invited: false },
+    { id: 3, name: 'David Mustagne', email: 'david.m@example.com', invited: false },
+    { id: 4, name: 'Michael Smith', email: 'michael.s@example.com', invited: false },
+    { id: 5, name: 'Alex Yusrav', email: 'alex.y@example.com', invited: false },
+    { id: 6, name: 'Eduarda Silva', email: 'eduarda.s@example.com', invited: false },
+];
+
+const obraFamiliaSimoesGanttData = [
+    { id: 1, name: "Obra - Família Simões", duration: "57 dias", startDate: "2025-06-09", endDate: "2025-08-26", isParent: true, progress: 60, totalDurationDays: 57 },
+    { id: 2, name: "Mobilização", duration: "7 dias", startDate: "2025-06-09", endDate: "2025-06-17", progress: 100, totalDurationDays: 7 },
+    { id: 3, name: "Mobilização (Cópia)", duration: "7 dias", startDate: "2025-06-09", endDate: "2025-06-17", progress: 100, totalDurationDays: 7 },
+    { id: 4, name: "Serviços iniciais", duration: "23 dias", startDate: "2025-06-18", endDate: "2025-07-18", progress: 90, totalDurationDays: 23 },
+    { id: 5, name: "Proteção", duration: "1 dia", startDate: "2025-06-18", endDate: "2025-06-18", progress: 100, totalDurationDays: 1 },
+    { id: 6, name: "Montagem Mezanino", duration: "20 dias", startDate: "2025-06-19", endDate: "2025-07-16", progress: 80, totalDurationDays: 20 },
+    { id: 7, name: "Demolição de forro", duration: "1 dia", startDate: "2025-07-17", endDate: "2025-07-17", progress: 100, totalDurationDays: 1 },
+    { id: 8, name: "Abertura de vãos", duration: "1 dia", startDate: "2025-06-19", endDate: "2025-06-19", progress: 100, totalDurationDays: 1 },
+    { id: 9, name: "Elevação de alvenaria", duration: "2 dias", startDate: "2025-07-17", endDate: "2025-07-18", progress: 75, totalDurationDays: 2 },
+    { id: 10, name: "Paredes drywall", duration: "2 dias", startDate: "2025-07-17", endDate: "2025-07-18", progress: 70, totalDurationDays: 2 },
+    { id: 11, name: "Hidráulica", duration: "3 dias", startDate: "2025-07-21", endDate: "2025-07-23", progress: 50, totalDurationDays: 3 },
+    { id: 12, name: "Banho 2", duration: "3 dias", startDate: "2025-07-21", endDate: "2025-07-23", progress: 40, totalDurationDays: 3 },
+    { id: 13, name: "Elétrica", duration: "3 dias", startDate: "2025-07-18", endDate: "2025-07-22", progress: 60, totalDurationDays: 3 },
+    { id: 14, name: "Novos pontos de iluminação", duration: "3 dias", startDate: "2025-07-18", endDate: "2025-07-22", progress: 55, totalDurationDays: 3 },
+    { id: 15, name: "Ar condicionado", duration: "6 dias", startDate: "2025-07-24", endDate: "2025-07-31", progress: 30, totalDurationDays: 6 },
+    { id: 16, name: "Sala", duration: "2 dias", startDate: "2025-07-24", endDate: "2025-07-25", progress: 20, totalDurationDays: 2 },
+    { id: 17, name: "Suíte 1", duration: "2 dias", startDate: "2025-07-28", endDate: "2025-07-29", progress: 15, totalDurationDays: 2 },
+    { id: 18, name: "Suíte 2", duration: "2 dias", startDate: "2025-07-30", endDate: "2025-07-31", progress: 10, totalDurationDays: 2 },
+    { id: 19, name: "Acabamentos", duration: "24 dias", startDate: "2025-07-24", endDate: "2025-08-26", progress: 5, totalDurationDays: 24 },
+    { id: 20, name: "Impermeabilização Suíte 2 e Alçapão", duration: "4 dias", startDate: "2025-07-29", endDate: "2025-08-01", progress: 0, totalDurationDays: 4 },
+    { id: 21, name: "Contrapiso Suíte 2", duration: "1 dia", startDate: "2025-07-30", endDate: "2025-07-30", progress: 0, totalDurationDays: 1 },
+    { id: 22, name: "Regularização das paredes", duration: "2 dias", startDate: "2025-08-01", endDate: "2025-08-04", progress: 0, totalDurationDays: 2 },
+    { id: 23, name: "Forro de gesso - Mezanino", duration: "2 dias", startDate: "2025-08-05", endDate: "2025-08-06", progress: 0, totalDurationDays: 2 },
+    { id: 24, name: "Piso porcelanato Banho 1 e", duration: "2 dias", startDate: "2025-08-07", endDate: "2025-08-08", progress: 0, totalDurationDays: 2 },
+    { id: 25, name: "Piso Vinílico Suíte 2 e Terraço", duration: "2 dias", startDate: "2025-08-11", endDate: "2025-08-12", progress: 0, totalDurationDays: 2 },
+    { id: 26, name: "Pintura Geral", duration: "6 dias", startDate: "2025-08-13", endDate: "2025-08-20", progress: 0, totalDurationDays: 6 },
+    { id: 27, name: "Iluminação", duration: "1 dia", startDate: "2025-08-21", endDate: "2025-08-21", progress: 0, totalDurationDays: 1 },
+    { id: 28, name: "Limpeza", duration: "3 dias", startDate: "2025-08-22", endDate: "2025-08-26", progress: 0, totalDurationDays: 3 }
+];
+
+// Combina todas as tarefas possíveis em uma lista única para os dropdowns
+const allPossibleTasks = Array.from(new Set([
+    ...initialProjectsData.flatMap(p => p.services.map(s => s.name)), // Serviços existentes nos projetos
+    ...obraFamiliaSimoesGanttData.map(task => task.name) // Tarefas do Gantt
+])).map((name, index) => ({ // Mapeia de volta para objetos, atribuindo IDs fictícios
+    id: index + 1,
+    name: name
+}));
+
+
+// --- COMPONENTES REUTILIZÁVEIS ---
+const Card = ({ children, className = "", onClick }) => (
+  <div className={`bg-white p-6 rounded-lg shadow-sm border border-gray-200 ${className} ${onClick ? 'cursor-pointer hover:shadow-md transition-shadow' : ''}`} onClick={onClick}>
+    {children}
+  </div>
+);
+
+const DarkInfoCard = ({ title, value, icon, onClick }) => (
+    <div className={`bg-[#CF1219] p-4 rounded-lg text-white ${onClick ? 'cursor-pointer hover:shadow-lg transition-all' : ''}`} onClick={onClick}>
+        <div className="flex items-center mb-2">
+            {icon}
+            <h3 className="ml-2 font-medium">{title}</h3>
+        </div>
+        <div>
+            <p className="text-3xl font-bold text-white">{value}</p>
+        </div>
+    </div>
+);
+
+const Modal = ({ children, onClose, title, className = "" }) => {
+  const modalRef = useRef();
+  useClickOutside(modalRef, onClose); // Fecha o modal ao clicar fora
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex justify-center items-center p-4 animate-fade-in">
+      <div ref={modalRef} className={`bg-white rounded-lg shadow-xl w-full ${className}`} onClick={(e) => e.stopPropagation()}>
+        <div className="p-4 border-b flex justify-between items-center">
+          <h2 className="text-xl font-bold text-gray-800">{title}</h2>
+          <button onClick={onClose} className="p-2 rounded-full text-gray-500 hover:bg-gray-200">
+            <X size={20} />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// Hook para detectar clique fora de um componente
+const useClickOutside = (ref, handler) => {
+  useEffect(() => {
+    const listener = (event) => {
+      if (!ref.current || ref.current.contains(event.target)) return;
+      handler(event);
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
+};
+
+// Componente de Breadcrumbs
+const Breadcrumbs = ({ history, historyIndex, navigateTo }) => {
+  const getPageName = (item) => {
+    const names = {
+      painel: "Painel",
+      projects: "Projetos",
+      project_overview: "Visão Geral",
+      project_gantt: "Cronograma",
+      project_financials: "Financeiro",
+      project_rdo: "Diário de Obra",
+      project_documents: "Documentos",
+      calendar: "Calendário",
+      reports: "Relatórios",
+      clients: "Clientes",
+      team: "Equipe",
+      suppliers: "Fornecedores",
+      settings: "Configurações",
+      profile: "Meu Perfil"
+    };
+    // Se for uma página de projeto, adiciona o nome do projeto
+    if (item.project) {
+        return `${names[item.page] || item.page} - ${item.project.name}`;
+    }
+    return names[item.page] || item.page;
+  };
+
+  // Limita o histórico a no máximo 4 itens, mostrando os mais recentes
+  const startIndex = Math.max(0, history.length - 4);
+  const displayedHistory = history.slice(startIndex, history.length);
+  // Ajusta o historyIndex para o sub-array displayedHistory
+  const displayedHistoryIndex = displayedHistory.findIndex(item => item === history[historyIndex]);
+
+
+  return (
+    <div className="flex items-center text-sm text-gray-600 mb-4">
+      {displayedHistory.map((item, index) => (
+        <div key={index} className="flex items-center">
+          {index > 0 && <ChevronRight size={16} className="mx-2 text-gray-400" />}
+          <button
+            onClick={() => {
+              // Recria o histórico até o ponto clicado e navega
+              const originalIndex = history.indexOf(item);
+              const newHistory = history.slice(0, originalIndex + 1);
+              navigateTo(item.page, item.project, true); // Passa true para não adicionar ao histórico novamente
+            }}
+            className={`hover:text-[#CF1219] ${index === displayedHistoryIndex ? 'font-bold text-[#CF1219]' : ''}`}
+          >
+            {getPageName(item)}
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// Hook para Atalhos de Teclado
+const useKeyboardShortcuts = (handleNavBack, handleNavForward) => {
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key === 'z') {
+        e.preventDefault(); // Previne o comportamento padrão do navegador
+        handleNavBack();
+      } else if (e.ctrlKey && e.key === 'y') {
+        e.preventDefault(); // Previne o comportamento padrão do navegador
+        handleNavForward();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [handleNavBack, handleNavForward]);
+};
+
+// Componente de Loading State
+const LoadingOverlay = ({ isLoading, text = "Carregando..." }) => {
+  if (!isLoading) return null;
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex flex-col items-center justify-center">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#CF1219]"></div>
+      <p className="mt-4 text-white">{text}</p>
+    </div>
+  );
+};
+
+// --- COMPONENTES DE LAYOUT ---
+const Sidebar = ({ currentPage, setCurrentPage, selectedProject, onBack }) => {
+  const mainItems = [
+    { name: "Painel", icon: LayoutDashboard, page: "painel" },
+    { name: "Projetos", icon: Briefcase, page: "projects" },
+    { name: "Calendário", icon: CalendarDays, page: "calendar" },
+  ];
+
+  const projectSpecificItems = [
+    { name: "Visão Geral", icon: Eye, page: "project_overview" },
+    { name: "Cronograma", icon: GanttChartSquare, page: "project_gantt" },
+    { name: "Financeiro", icon: Wallet, page: "project_financials" },
+    { name: "Diário de Obra", icon: BookOpen, page: "project_rdo" },
+    { name: "Documentos", icon: FileText, page: "project_documents" },
+  ];
+
+  const adminItems = [
+    { name: "Relatórios", icon: TrendingUp, page: "reports" },
+    { name: "Clientes", icon: Users, page: "clients" },
+    { name: "Equipe", icon: Users, page: "team" },
+    { name: "Fornecedores", icon: Building, page: "suppliers" },
+    { name: "Configurações", icon: Settings, page: "settings" },
+  ];
+
+  const renderNavSection = (title, items) => (
+    <div className="px-4 mt-6">
+      <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{title}</h3>
+      <nav className="mt-2">
+        {items.map((item) => (
+          <a
+            key={item.name}
+            href="#"
+            onClick={(e) => { e.preventDefault(); setCurrentPage(item.page); }}
+            className={`flex items-center justify-between py-2 px-3 my-1 rounded-md transition-colors duration-200 ${
+              currentPage === item.page
+                ? "bg-[#CF1219] text-white"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <div className="flex items-center">
+              <item.icon className="w-5 h-5" />
+              <span className="mx-3 font-medium text-sm">{item.name}</span>
+            </div>
+          </a>
+        ))}
+      </nav>
+    </div>
+  );
+
+  return (
+    <div className="w-56 bg-white shadow-md flex-shrink-0 hidden md:flex md:flex-col">
+      <div className="h-20 flex items-center justify-center text-2xl font-bold text-[#CF1219] border-b">
+        Software<span className="text-gray-800">Obras</span>
+      </div>
+      <div className="flex-1 overflow-y-auto">
+        {selectedProject ? (
+          <>
+            <div className="p-4">
+              <button onClick={onBack} className="flex items-center text-sm text-gray-500 hover:text-[#CF1219] w-full">
+                <ArrowLeft size={16} className="mr-2" />
+                Todos os Projetos
+              </button>
+              <div className="mt-4">
+                <h2 className="text-lg font-bold text-gray-800">{selectedProject.name}</h2>
+                <p className="text-sm text-gray-500">{selectedProject.client}</p>
+              </div>
+            </div>
+            {renderNavSection("Gestão do Projeto", projectSpecificItems)}
+          </>
+        ) : (
+          <>
+            {renderNavSection("Principal", mainItems)}
+            {renderNavSection("Administração", adminItems)}
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const SearchComponent = ({ projects, onResultClick }) => {
+    const [searchTerm, setSearchTerm] = useState("");
+    const [results, setResults] = useState([]);
+    const [isFocused, setIsFocused] = useState(false);
+    const [isProjectsDropdownOpen, setIsProjectsDropdownOpen] = useState(false);
+    const searchRef = useRef(null);
+    useClickOutside(searchRef, () => {
+        setIsFocused(false);
+        setIsProjectsDropdownOpen(false);
+    });
+    const defaultSuggestions = useMemo(() => [
+        { type: 'Pesquisa Recente', name: 'Relatório Financeiro Q2', icon: Clock },
+        { type: 'Sugestão', name: 'Tarefas atrasadas', icon: AlertTriangle },
+    ], []);
+    useEffect(() => {
+        if (searchTerm.length > 1) {
+            setIsProjectsDropdownOpen(false);
+            const lowerCaseSearchTerm = searchTerm.toLowerCase();
+            const foundResults = [];
+            projects.forEach(project => {
+                if (project.name.toLowerCase().includes(lowerCaseSearchTerm) || project.client.toLowerCase().includes(lowerCaseSearchTerm)) {
+                    foundResults.push({ type: 'Projeto', name: project.name, id: project.id, icon: Building });
+                }
+                project.services.forEach(service => {
+                    if (service.name.toLowerCase().includes(lowerCaseSearchTerm)) {
+                        foundResults.push({ type: 'Tarefa', name: service.name, projectId: project.id, id: service.id, icon: GanttChartSquare });
+                    }
+                });
+            });
+            setResults(foundResults);
+        } else {
+            setResults([]);
+        }
+    }, [searchTerm, projects]);
+    const handleFocus = () => {
+        setIsFocused(true);
+        setIsProjectsDropdownOpen(false);
+    };
+    const handleResultClick = (result) => {
+        onResultClick(result);
+        setSearchTerm("");
+        setIsFocused(false);
+        setIsProjectsDropdownOpen(false);
+    }
+    const handleArrowClick = (e) => {
+        e.stopPropagation();
+        setIsProjectsDropdownOpen(!isProjectsDropdownOpen);
+        setIsFocused(false);
+    }
+    const ongoingProjects = projects.filter(p => p.status === 'Ongoing');
+    let displayResults = [];
+    if (isProjectsDropdownOpen) {
+        displayResults = ongoingProjects.map(p => ({...p, type: 'Projeto em Andamento', icon: Briefcase}));
+    } else if (isFocused) {
+        displayResults = searchTerm.length > 1 ? results : defaultSuggestions;
+    }
+    return (
+        <div className="relative w-full max-w-lg" ref={searchRef}>
+            <div className="relative flex items-center">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
+                <input
+                    type="text"
+                    placeholder="Pesquisar projetos, tarefas, documentos..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onFocus={handleFocus}
+                    className="w-full pl-12 pr-10 py-2 border rounded-full bg-gray-100 focus:bg-white focus:ring-2 focus:ring-[#CF1219] focus:outline-none"
+                />
+                <button onClick={handleArrowClick} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-[#CF1219]">
+                    <ChevronDown size={20} />
+                </button>
+            </div>
+            {(isFocused || isProjectsDropdownOpen) && (
+                <div className="absolute mt-2 w-full bg-white rounded-lg shadow-xl z-20 overflow-hidden border">
+                    <ul className="max-h-80 overflow-y-auto">
+                        {displayResults.length > 0 ? (
+                            displayResults.map((result, index) => (
+                                <li key={index} onClick={() => handleResultClick(result)} className="flex items-center px-4 py-3 hover:bg-gray-100 cursor-pointer">
+                                    <result.icon size={18} className="mr-3 text-gray-500"/>
+                                    <div>
+                                        <p className="text-sm font-medium text-gray-800">{result.name}</p>
+                                        <p className="text-xs text-gray-500">{result.type}</p>
+                                    </div>
+                                </li>
+                            ))
+                        ) : (
+                            <li className="px-4 py-3 text-sm text-gray-500">
+                                {searchTerm.length > 1 ? "Nenhum resultado encontrado." : "Nenhuma sugestão."}
+                            </li>
+                        )}
+                    </ul>
+                </div>
+            )}
+        </div>
+    );
+};
+
+const Header = ({ projects, onResultClick, onNavBack, onNavForward, canNavBack, canNavForward, onProfileClick }) => {
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const profileRef = useRef(null);
+  const notificationsRef = useRef(null);
+  useClickOutside(profileRef, () => setProfileOpen(false));
+  useClickOutside(notificationsRef, () => setNotificationsOpen(false));
+  const notifications = [
+    { text: "A etapa 'Acabamentos' da Obra Família Simões atingiu 85% do orçamento.", icon: Wallet, color: 'text-yellow-500' },
+    { text: "ALERTA: O custo da etapa 'Elétrica' ultrapassou o valor orçamentado.", icon: AlertTriangle, color: 'text-red-500' },
+    { text: "Novo Diário de Obra registado na Obra Edifício Alfa.", icon: BookOpen, color: 'text-blue-500' },
+  ];
+  return (
+    <header className="h-20 bg-white shadow-sm flex items-center justify-between px-6 border-b">
+      <div className="flex items-center gap-4">
+        <button onClick={onNavBack} disabled={!canNavBack} className="p-2 rounded-full disabled:text-gray-300 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100">
+            <ArrowLeft size={20} />
+        </button>
+        <button onClick={onNavForward} disabled={!canNavForward} className="p-2 rounded-full disabled:text-gray-300 disabled:cursor-not-allowed text-gray-500 hover:bg-gray-100">
+            <ArrowRight size={20} />
+        </button>
+      </div>
+      <div className="flex-1 flex justify-center">
+        <SearchComponent projects={projects} onResultClick={onResultClick} />
+      </div>
+      <div className="flex items-center space-x-4 ml-4">
+        <div className="relative" ref={notificationsRef}>
+          <button onClick={() => setNotificationsOpen(!notificationsOpen)} className="text-gray-500 hover:text-[#CF1219] relative">
+            <Bell className="h-6 w-6" />
+            <span className="absolute -top-1 -right-1 flex h-3 w-3">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+            </span>
+          </button>
+          {notificationsOpen && (
+              <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-xl z-20 border">
+               <div className="p-4 font-bold border-b text-gray-800">Notificações</div>
+                   <div className="py-1">
+                     {notifications.map((notif, index) => (
+                           <a key={index} href="#" className="flex items-start px-4 py-3 hover:bg-gray-100">
+                             <notif.icon className={`h-5 w-5 ${notif.color} mr-3 mt-1 flex-shrink-0`} />
+                             <p className="text-sm text-gray-600">{notif.text}</p>
+                           </a>
+                     ))}
+                   </div>
+              </div>
+            )}
+        </div>
+        <div className="w-px h-6 bg-gray-200"></div>
+        <div className="relative" ref={profileRef}>
+          <button onClick={() => setProfileOpen(!profileOpen)} className="flex items-center text-gray-500 hover:text-[#CF1219]">
+            <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+              <User className="h-6 w-6 text-red-500" />
+            </div>
+            <span className="ml-2 hidden md:inline">Lucas Silva</span>
+          </button>
+            {profileOpen && (
+              <div className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-xl z-20 py-2 border">
+               <a href="#" onClick={() => { onProfileClick(); setProfileOpen(false); }} className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                 <User size={16} className="mr-2" /> Meu Perfil
+               </a>
+               <a href="#" className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                 <LogOut size={16} className="mr-2" /> Sair
+               </a>
+              </div>
+            )}
+        </div>
+      </div>
+    </header>
+  );
+};
+
+const DashboardView = ({ projects, onProjectSelect }) => {
+    const [modalContent, setModalContent] = useState(null);
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false);
+    const [filterPeriod, setFilterPeriod] = useState('all');
+    const [filterProjectName, setFilterProjectName] = useState('all');
+    const [filterStatus, setFilterStatus] = useState('all');
+
+    const filteredProjects = useMemo(() => {
+        const now = new Date();
+        const startOfWeek = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+
+        return projects.filter(p => {
+            const projectStartDate = new Date(p.startDate);
+            const projectEndDate = new Date(p.endDate);
+            let matchesPeriod = true;
+
+            if (filterPeriod === 'today') {
+                matchesPeriod = (now >= projectStartDate && now <= projectEndDate) || (p.status === 'Ongoing' && projectStartDate <= now);
+            } else if (filterPeriod === 'week') {
+                matchesPeriod = (projectEndDate >= startOfWeek && projectStartDate <= now) || p.status === 'Ongoing';
+            } else if (filterPeriod === 'month') {
+                matchesPeriod = (projectEndDate >= startOfMonth && projectStartDate <= now) || p.status === 'Ongoing';
+            }
+
+            const matchesProject = filterProjectName === 'all' ? true : p.name === filterProjectName;
+            const matchesStatus = filterStatus === 'all' ? true : p.status === filterStatus;
+
+            return matchesPeriod && matchesProject && matchesStatus;
+        });
+    }, [projects, filterPeriod, filterProjectName, filterStatus]);
+
+
+    const ongoingProjects = useMemo(() => filteredProjects.filter(p => p.status === 'Ongoing'), [filteredProjects]);
+    const completedProjects = useMemo(() => filteredProjects.filter(p => p.status === 'Completed'), [filteredProjects]);
+    const totalBudget = useMemo(() => filteredProjects.reduce((acc, p) => acc + p.budget, 0), [filteredProjects]);
+    const lateTasks = useMemo(() => filteredProjects.flatMap(p => p.services.map(s => ({ ...s, projectId: p.id, projectName: p.name }))).filter(s => new Date(s.endDate) < new Date() && s.progress < 100), [filteredProjects]);
+    const budgetConsumedPercentage = useMemo(() => {
+        const totalBudgetOngoing = ongoingProjects.reduce((acc, p) => acc + p.budget, 0);
+        if (totalBudgetOngoing === 0) return 0;
+        const totalSpentOngoing = ongoingProjects
+            .flatMap(p => p.services)
+            .reduce((acc, s) => acc + s.cost, 0);
+        return (totalSpentOngoing / totalBudgetOngoing) * 100;
+    }, [ongoingProjects]);
+    const averageCompletionTime = useMemo(() => {
+        if (completedProjects.length === 0) return 0;
+        const totalDuration = completedProjects.reduce((acc, p) => {
+            const startDate = new Date(p.startDate);
+            const endDate = new Date(p.endDate);
+            const duration = (endDate - startDate) / (1000 * 60 * 60 * 24);
+            return acc + duration;
+        }, 0);
+        return totalDuration / completedProjects.length;
+    }, [completedProjects]);
+    const calculateROI = useCallback(() => {
+        let totalROI = 0;
+        let projectsWithROI = 0;
+        completedProjects.forEach(project => {
+            const totalCost = project.services.reduce((sum, service) => sum + service.cost, 0);
+            if (totalCost > 0) {
+                const roi = ((project.budget - totalCost) / totalCost) * 100;
+                totalROI += roi;
+                projectsWithROI++;
+            }
+        });
+        return projectsWithROI > 0 ? (totalROI / projectsWithROI).toFixed(1) : "N/A";
+    }, [completedProjects]);
+    const calculateAverageScheduleDeviation = useCallback(() => {
+        let totalDeviationDays = 0;
+        let projectsConsidered = 0;
+        filteredProjects.forEach(project => {
+            const plannedStartDate = new Date(project.startDate);
+            const plannedEndDate = new Date(new Date(project.endDate).getTime() + (Math.random() * 30 - 15) * 24 * 60 * 60 * 1000); // Simula variação
+            const plannedDuration = (plannedEndDate - plannedStartDate) / (1000 * 60 * 60 * 24);
+            let actualDuration;
+            if (project.status === 'Completed') {
+                const actualEndDate = new Date(project.endDate);
+                actualDuration = (actualEndDate - plannedStartDate) / (1000 * 60 * 60 * 24);
+            } else {
+                const today = new Date();
+                const currentEndDate = today > plannedEndDate ? today : plannedEndDate;
+                actualDuration = (currentEndDate - plannedStartDate) / (1000 * 60 * 60 * 24);
+            }
+            const deviation = actualDuration - plannedDuration;
+            totalDeviationDays += deviation;
+            projectsConsidered++;
+        });
+        if (projectsConsidered === 0) return "N/A";
+        const avgDeviation = totalDeviationDays / projectsConsidered;
+        const sign = avgDeviation >= 0 ? "+" : "";
+        return `${sign}${avgDeviation.toFixed(0)} Dias`;
+    }, [filteredProjects]);
+    const progressComparisonData = useMemo(() => 
+        ongoingProjects.map(p => {
+            const physicalProgress = p.services.reduce((acc, s) => acc + s.progress, 0) / (p.services.length || 1);
+            const financialProgress = p.budget > 0 ? (p.services.reduce((acc, s) => acc + s.cost, 0) / p.budget) * 100 : 0;
+            return {
+                name: p.name.substring(0, 15) + (p.name.length > 15 ? '...' : ''),
+                'Físico %': physicalProgress.toFixed(0),
+                'Financeiro %': financialProgress.toFixed(0),
+            };
+        })
+    , [ongoingProjects]);
+    const costPerStageData = useMemo(() => {
+        const costs = new Map();
+        filteredProjects.flatMap(p => p.services).forEach(s => {
+            costs.set(s.name, (costs.get(s.name) || 0) + s.cost);
+        });
+        return Array.from(costs, ([name, cost]) => ({ name, Custo: cost }));
+    }, [filteredProjects]);
+    const financialOverviewData = useMemo(() => ongoingProjects.map(p => {
+        const spent = p.services.reduce((acc, s) => acc + s.cost * (s.progress / 100), 0);
+        return {
+            name: p.name.substring(0, 15) + (p.name.length > 15 ? '...' : ''),
+            Orçado: p.budget,
+            Gasto: spent,
+        };
+    }), [ongoingProjects]);
+    const taskPerformanceData = useMemo(() => {
+        let completed = 0, onTime = 0, late = 0;
+        filteredProjects.flatMap(p => p.services).forEach(s => {
+            if (s.progress === 100) completed++;
+            else if (new Date(s.endDate) < new Date()) late++;
+            else onTime++;
+        });
+        return [
+            { name: "Concluídas", value: completed, fill: "#F87171" },
+            { name: "Em Dia", value: onTime, fill: "#CF1219" },
+            { name: "Atrasadas", value: late, fill: "#991B1B" },
+        ];
+    }, [filteredProjects]);
+    const handleCardClick = (type) => {
+        let title = '';
+        let data = [];
+        if (type === 'ongoing') title = 'Projetos em Andamento', data = ongoingProjects;
+        else if (type === 'completed') title = 'Projetos Concluídos', data = completedProjects;
+        else if (type === 'late') title = 'Tarefas Atrasadas', data = lateTasks;
+        setModalContent({ title, data, type });
+    };
+    const handleModalItemClick = (item) => {
+        const projectToSelect = projects.find(p => p.id === (item.projectId || item.id));
+        if (projectToSelect) onProjectSelect(projectToSelect);
+        setModalContent(null);
+    }
+    const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, index, name, value }) => {
+        const RADIAN = Math.PI / 180;
+        const radius = innerRadius + (outerRadius - innerRadius) * 1.4;
+        const x = cx + radius * Math.cos(-midAngle * RADIAN);
+        const y = cy + radius * Math.sin(-midAngle * RADIAN);
+        return (
+            <text x={x} y={y} fill="black" textAnchor={x > cx ? 'start' : 'end'} dominantBaseline="middle" fontSize={12}>
+                {`${name} ${value} (${(percent * 100).toFixed(0)}%)`}
+            </text>
+        );
+    };
+    const CustomTooltip = ({ active, payload, label }) => {
+      if (active && payload && payload.length) {
+        return (
+          <div className="bg-white p-2 border border-gray-300 rounded shadow-sm text-gray-800 text-sm">
+            <p className="font-semibold">{`Mês: ${label}`}</p>
+            <p>{`Consumo: ${payload[0].value.toFixed(1)}%`}</p>
+          </div>
+        );
+      }
+      return null;
+    };
+    const CustomDot = (props) => {
+        const { cx, cy, stroke, payload, value } = props;
+        const maxValue = Math.max(...monthlyBudgetConsumptionData.map(d => d.value));
+        if (value === maxValue) {
+            return (
+                <svg x={cx - 50} y={cy - 60} width="100" height="60" viewBox="0 0 100 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <rect x="0" y="10" width="100" height="40" rx="8" ry="8" fill="#1C2132"/>
+                    <path d="M50 50L40 60H60L50 50Z" fill="#1C2132"/>
+                    <text x="50" y="25" fill="white" textAnchor="middle" dominantBaseline="middle" fontSize="10">Highest value</text>
+                    <text x="50" y="40" fill="white" textAnchor="middle" dominantBaseline="middle" fontSize="12" fontWeight="bold">{value}% <tspan fontSize="8" fill="#4ADE80">+250%</tspan></text>
+                </svg>
+            );
+        }
+        return null;
+    };
+    return (
+        <div className="p-4 md:p-8 animate-fade-in bg-gray-100">
+            {modalContent && (
+                <Modal title={modalContent.title} onClose={() => setModalContent(null)}>
+                    <div className="p-6 max-h-[60vh] overflow-y-auto">
+                        <ul className="divide-y divide-gray-200 text-gray-800">
+                            {modalContent.data.map((item, index) => (
+                                <li key={index} className="py-3 px-2 flex justify-between items-center hover:bg-gray-100 rounded-md cursor-pointer" onClick={() => handleModalItemClick(item)}>
+                                    <div>
+                                        <p className="font-medium">{item.name}</p>
+                                        {modalContent.type === 'late' && <p className="text-sm text-gray-500">{item.projectName}</p>}
+                                    </div>
+                                    {modalContent.type !== 'late' && <span className="text-sm text-gray-500">{item.client}</span>}
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                </Modal>
+            )}
+            <div className="flex justify-between items-center mb-8"> {/* Flex container for title and filter button */}
+                <h1 className="text-3xl font-bold text-gray-800">Painel</h1>
+                <button 
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                >
+                    <Filter size={20} className="mr-2" /> Filtrar
+                </button>
+            </div>
+
+            {isFilterModalOpen && (
+                <Modal title="Filtrar Painel" onClose={() => setIsFilterModalOpen(false)}>
+                    <div className="p-6 space-y-6">
+                        <div>
+                            <span className="text-lg font-medium text-gray-700 block mb-2">Período:</span>
+                            <div className="flex flex-wrap gap-3">
+                                {['all', 'today', 'week', 'month'].map(period => (
+                                    <button key={period} onClick={() => setFilterPeriod(period)}
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors
+                                            ${filterPeriod === period ? 'bg-[#CF1219] text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                                        {period === 'all' && 'Todos'}
+                                        {period === 'today' && 'Hoje'}
+                                        {period === 'week' && 'Semana'}
+                                        {period === 'month' && 'Mês'}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div>
+                            <span className="text-lg font-medium text-gray-700 block mb-2">Projeto:</span>
+                            <div className="relative w-full">
+                                <select 
+                                    id="filterProject" 
+                                    value={filterProjectName} 
+                                    onChange={(e) => setFilterProjectName(e.target.value)}
+                                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
+                                >
+                                    <option value="all">Todos</option>
+                                    {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                </select>
+                                {/* Um ícone de pesquisa pode ser adicionado aqui com funcionalidade de busca seletiva */}
+                                <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                            </div>
+                        </div>
+
+                        <div>
+                            <span className="text-lg font-medium text-gray-700 block mb-2">Status:</span>
+                            <div className="flex flex-wrap gap-3">
+                                {['all', 'Ongoing', 'Completed', 'Em Planejamento', 'Pausada', 'Cancelada'].map(status => (
+                                    <button key={status} onClick={() => setFilterStatus(status)}
+                                            className={`px-4 py-2 rounded-full text-sm font-semibold transition-colors
+                                            ${filterStatus === status ? 'bg-[#CF1219] text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}>
+                                        {status === 'all' ? 'Todos' : status}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    <div className="p-4 border-t flex justify-end">
+                        <button onClick={() => setIsFilterModalOpen(false)} className="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                            Aplicar Filtros
+                        </button>
+                    </div>
+                </Modal>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <DarkInfoCard onClick={() => handleCardClick('ongoing')} title="Projetos em Andamento" value={ongoingProjects.length} icon={<Briefcase size={20} className="text-white"/>} />
+                <DarkInfoCard onClick={() => handleCardClick('completed')} title="Projetos Concluídos" value={completedProjects.length} icon={<CheckCircle size={20} className="text-white"/>} />
+                <DarkInfoCard title="Orçamento Total" value={`R$ ${(totalBudget / 1000000).toFixed(2)}M`} icon={<DollarSign size={20} className="text-white"/>} />
+                <DarkInfoCard onClick={() => handleCardClick('late')} title="Tarefas Atrasadas" value={lateTasks.length} icon={<AlertTriangle size={20} className="text-white"/>} />
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                <DarkInfoCard title="Orçamento Consumido" value={`${budgetConsumedPercentage.toFixed(1)}%`} icon={<ListChecks size={20} className="text-white"/>} />
+                <DarkInfoCard title="Prazo Médio Conclusão" value={`${averageCompletionTime.toFixed(0)} dias`} icon={<Clock size={20} className="text-white"/>} />
+                <DarkInfoCard title="Rentabilidade (ROI)" value={`${calculateROI()}%`} icon={<TrendingUp size={20} className="text-white"/>} />
+                <DarkInfoCard title="Desvio Médio de Prazo" value={calculateAverageScheduleDeviation()} icon={<CalendarDays size={20} className="text-white"/>} />
+            </div>
+            <div className="grid grid-cols-1 gap-6 mb-8">
+                <Card>
+                    <h3 className="font-semibold mb-4 text-gray-800">Orçamento Consumido Mensalmente</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <AreaChart
+                            data={monthlyBudgetConsumptionData}
+                            margin={{ top: 10, right: 30, left: 0, bottom: 0 }}
+                        >
+                            <defs>
+                                <linearGradient id="colorBudget" x1="0" y1="0" x2="0" y2="1">
+                                    <stop offset="5%" stopColor="#CF1219" stopOpacity={0.8}/>
+                                    <stop offset="95%" stopColor="#8884d8" stopOpacity={0}/>
+                                </linearGradient>
+                            </defs>
+                            <XAxis dataKey="month" axisLine={false} tickLine={false} />
+                            <YAxis axisLine={false} tickLine={false} tickFormatter={(value) => `${value}%`} />
+                            <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e0e0e0" />
+                            <Tooltip content={<CustomTooltip />} />
+                            <Area type="monotone" dataKey="value" stroke="#CF1219" fillOpacity={1} fill="url(#colorBudget)" dot={<CustomDot />} />
+                        </AreaChart>
+                    </ResponsiveContainer>
+                </Card>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <Card className="lg:col-span-2">
+                    <h3 className="font-semibold mb-4 text-gray-800">Consumo do Orçamento por Obra</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={financialOverviewData} margin={{ top: 5, right: 20, left: 20, bottom: 5 }}>
+                            <defs>
+                                <linearGradient id="colorGasto" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor="#CF1219" stopOpacity={0.8}/>
+                                <stop offset="95%" stopColor="#e53e3e" stopOpacity={0.6}/>
+                                </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" tick={{ fontSize: 12 }} />
+                            <YAxis tickFormatter={(value) => `R$${(value/1000)}k`} />
+                            <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} contentStyle={{ backgroundColor: '#fff', border: '1px solid #ddd' }} />
+                            <Legend />
+                            <Bar dataKey="Orçado" fill="#2ecc71" />
+                            <Bar dataKey="Gasto" fill="url(#colorGasto)" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Card>
+                <Card className="lg:col-span-1">
+                    <h3 className="font-semibold mb-4 text-gray-800">Tarefas Críticas</h3>
+                     <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {lateTasks.length > 0 ? lateTasks.map(task => (
+                            <div key={task.id} className="p-3 bg-red-50 rounded-lg">
+                                <p className="font-bold text-sm text-red-700">{task.name}</p>
+                                <p className="text-xs text-gray-500">{task.projectName}</p>
+                            </div>
+                        )) : <p className="text-gray-500 text-center pt-20">Nenhuma tarefa atrasada.</p>}
+                     </div>
+                </Card>
+            </div>
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mt-6">
+                 <Card className="lg:col-span-1">
+                    <h3 className="font-semibold mb-4 text-gray-800">Desempenho de Prazos</h3>
+                     <ResponsiveContainer width="100%" height={350}>
+                        <PieChart margin={{ top: 20, right: 40, bottom: 40, left: 40 }}>
+                            <Pie 
+                                data={taskPerformanceData} 
+                                dataKey="value" 
+                                nameKey="name" 
+                                cx="50%" 
+                                cy="50%" 
+                                innerRadius={50}
+                                outerRadius={80}
+                                labelLine={true}
+                                label={renderCustomizedLabel}
+                            >
+                                {taskPerformanceData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.fill} />
+                                ))}
+                            </Pie>
+                            <Tooltip formatter={(value) => `${value} tarefas`} />
+                        </PieChart>
+                     </ResponsiveContainer>
+                 </Card>
+                 <Card className="lg:col-span-2">
+                    <h3 className="font-semibold mb-4 text-gray-800">Atividade Recente</h3>
+                     <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                        {projects.flatMap(p => p.dailyLogs.map(log => ({...log, projectName: p.name}))).sort((a,b) => new Date(b.date) - new Date(a.date)).slice(0, 5).map(log => (
+                             <div key={log.id} className="p-3 bg-gray-50 rounded-lg flex items-start gap-3">
+                                <div className="text-gray-400"><BookOpen size={18}/></div>
+                                <div>
+                                    <p className="text-sm text-gray-800">Novo RDO registado em <span className="font-bold">{log.projectName}</span></p>
+                                    <p className="text-xs text-gray-500">{log.notes.substring(0, 70)}...</p>
+                                </div>
+                            </div>
+                        ))}
+                     </div>
+                 </Card>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+                <Card>
+                    <h3 className="font-semibold mb-4 text-gray-800">Progresso Físico vs. Financeiro</h3>
+                    <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={progressComparisonData}>
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis dataKey="name" />
+                            <YAxis unit="%" />
+                            <Tooltip />
+                            <Legend />
+                            <Bar dataKey="Físico %" fill="#8884d8" />
+                            <Bar dataKey="Financeiro %" fill="#82ca9d" />
+                        </BarChart>
+                    </ResponsiveContainer>
+                </Card>
+                <Card>
+                    <h3 className="font-semibold mb-4 text-gray-800">Custo por Etapa de Serviço</h3>
+                     <ResponsiveContainer width="100%" height={300}>
+                        <BarChart data={costPerStageData} layout="vertical" margin={{ top: 5, right: 20, left: 100, bottom: 5 }}>
+                             <CartesianGrid strokeDasharray="3 3" />
+                             <XAxis type="number" tickFormatter={(value) => `R$${(value/1000)}k`} />
+                             <YAxis type="category" dataKey="name" width={100}/>
+                             <Tooltip formatter={(value) => `R$ ${value.toLocaleString('pt-BR')}`} />
+                             <Bar dataKey="Custo" fill="#CF1219" />
+                        </BarChart>
+                     </ResponsiveContainer>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
+const AddTaskModal = ({ isOpen, onClose, onSave, taskToEdit }) => {
+    const [taskData, setTaskData] = useState(taskToEdit || {
+        name: '', duration: '', unit: '', cost: '', startDate: '', endDate: '', measure: ''
+    });
+
+    useEffect(() => {
+        setTaskData(taskToEdit || { name: '', duration: '', unit: '', cost: '', startDate: '', endDate: '', measure: '' });
+    }, [taskToEdit]);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setTaskData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        if (!taskData.name || !taskData.duration || !taskData.unit || taskData.cost === '' || !taskData.startDate || !taskData.endDate || taskData.measure === '') {
+            alert("Por favor, preencha todos os campos da tarefa.");
+            return;
+        }
+        onSave(taskData);
+        onClose();
+    };
+
+    const unitsOfMeasure = ["m", "m²", "m³", "un", "kg", "lote", "dia", "ponto", "hora", "etapa"];
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal title={taskToEdit ? "Editar Tarefa/Serviço" : "Adicionar Nova Tarefa/Serviço"} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                    <label htmlFor="taskName" className="block text-sm font-medium text-gray-700">Nome da Tarefa</label>
+                    <select
+                        id="taskName"
+                        name="name"
+                        value={taskData.name}
+                        onChange={handleChange}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                        required
+                    >
+                        <option value="">Selecione uma tarefa existente ou digite</option>
+                        {allPossibleTasks.map(task => (
+                            <option key={task.id} value={task.name}>{task.name}</option>
+                        ))}
+                    </select>
+                </div>
+                <div>
+                    <label htmlFor="taskDuration" className="block text-sm font-medium text-gray-700">Duração</label>
+                    <input type="text" id="taskDuration" name="duration" value={taskData.duration} onChange={handleChange} placeholder="Ex: 5 dias" className="mt-1 block w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4"> {/* Medida e Unidade na mesma linha */}
+                    <div>
+                        <label htmlFor="taskMeasure" className="block text-sm font-medium text-gray-700">Medida (Quantidade)</label>
+                        <input type="number" id="taskMeasure" name="measure" value={taskData.measure} onChange={handleChange} placeholder="Ex: 20" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-[#CF1219] focus:border-[#CF1219]" required />
+                    </div>
+                    <div>
+                        <label htmlFor="taskUnit" className="block text-sm font-medium text-gray-700">Unidade de Medida</label>
+                        <select id="taskUnit" name="unit" value={taskData.unit} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]" required>
+                            <option value="">Selecione a unidade</option>
+                            {unitsOfMeasure.map(unit => <option key={unit} value={unit}>{unit}</option>)}
+                        </select>
+                    </div>
+                </div>
+                <div>
+                    <label htmlFor="taskCost" className="block text-sm font-medium text-gray-700">Custo Estimado (R$)</label>
+                    <input type="number" id="taskCost" name="cost" value={taskData.cost} onChange={handleChange} placeholder="0.00" step="0.01" className="mt-1 block w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]" required />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div>
+                        <label htmlFor="taskStartDate" className="block text-sm font-medium text-gray-700">Início</label>
+                        <input type="date" id="taskStartDate" name="startDate" value={taskData.startDate} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]" required />
+                    </div>
+                    <div>
+                        <label htmlFor="taskEndDate" className="block text-sm font-medium text-gray-700">Término</label>
+                        <input type="date" id="taskEndDate" name="endDate" value={taskData.endDate} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]" required />
+                    </div>
+                </div>
+                <button
+                    type="submit"
+                    className="w-full bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors flex items-center justify-center"
+                >
+                    {taskToEdit ? <><Edit size={20} className="mr-2" /> Atualizar Tarefa</> : <><Plus size={20} className="mr-2" /> Adicionar Tarefa</>}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+const CreateProjectModal = ({ onClose, onSave }) => {
+    const [projectData, setProjectData] = useState({
+        name: '',
+        client: '',
+        address: '',
+        startDate: '',
+        endDate: '',
+        budget: '',
+        status: 'Em Planejamento',
+        services: [],
+    });
+    const [teamMembers, setTeamMembers] = useState(mockTeamMembers);
+    const [isAddTaskModalOpen, setIsAddTaskModalOpen] = useState(false);
+    const [taskToEdit, setTaskToEdit] = useState(null);
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setProjectData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleAddTask = (newTask) => {
+        setProjectData(prev => ({
+            ...prev,
+            services: [...prev.services, { ...newTask, id: prev.services.length + 1, progress: 0 }]
+        }));
+        setIsAddTaskModalOpen(false);
+    };
+
+    const handleUpdateTask = (updatedTask) => {
+        setProjectData(prev => ({
+            ...prev,
+            services: prev.services.map(service => 
+                service.id === updatedTask.id ? { ...updatedTask, progress: service.progress } : service
+            )
+        }));
+        setTaskToEdit(null);
+        setIsAddTaskModalOpen(false);
+    };
+
+    const handleEditTask = (task) => {
+        setTaskToEdit(task);
+        setIsAddTaskModalOpen(true);
+    };
+
+    const handleDeleteTask = (id) => {
+        setProjectData(prev => ({
+            ...prev,
+            services: prev.services.filter(service => service.id !== id)
+        }));
+    };
+
+    const handleInviteToggle = (id) => {
+        setTeamMembers(prev => prev.map(member => 
+            member.id === id ? { ...member, invited: !member.invited } : member
+        ));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        console.log("Novo projeto a ser salvo:", projectData);
+        console.log("Membros da equipe convidados:", teamMembers.filter(m => m.invited));
+        onSave(projectData);
+        onClose();
+    };
+
+    return (
+        <Modal title="Criar novo projeto" onClose={onClose} className="max-w-6xl">
+            <form onSubmit={handleSubmit} className="flex p-6 max-h-[90vh] overflow-y-auto">
+                <div className="flex-1 pr-6 border-r border-gray-200">
+                    <h3 className="font-semibold text-gray-800 mb-4">Informação Básica do Projeto</h3>
+                    <div className="mb-4">
+                        <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-1">Nome da Obra</label>
+                        <input
+                            type="text"
+                            id="name"
+                            name="name"
+                            value={projectData.name}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                            placeholder="Digite o nome da obra"
+                            required
+                        />
+                         {projectData.name.length === 0 && <p className="text-red-500 text-xs mt-1">O campo não foi preenchido</p>}
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="client" className="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
+                        <select
+                            id="client"
+                            name="client"
+                            value={projectData.client}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                            required
+                        >
+                            <option value="">Selecione um cliente</option>
+                            {mockClientsData.map(client => (
+                                <option key={client.id} value={client.name}>{client.name}</option>
+                            ))}
+                        </select>
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="address" className="block text-sm font-medium text-gray-700 mb-1">Endereço da Obra</label>
+                        <input
+                            type="text"
+                            id="address"
+                            name="address"
+                            value={projectData.address}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                            placeholder="Endereço físico da obra"
+                            required
+                        />
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="budget" className="block text-sm font-medium text-gray-700 mb-1">Orçamento Total Previsto</label>
+                        <div className="relative">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500">R$</span>
+                            <input
+                                type="number"
+                                id="budget"
+                                name="budget"
+                                value={projectData.budget}
+                                onChange={handleChange}
+                                className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                                placeholder="0.00"
+                                step="0.01"
+                                required
+                            />
+                        </div>
+                    </div>
+                    <div className="mb-4">
+                        <label htmlFor="status" className="block text-sm font-medium text-gray-700 mb-1">Status da Obra</label>
+                        <select
+                            id="status"
+                            name="status"
+                            value={projectData.status}
+                            onChange={handleChange}
+                            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                        >
+                            <option value="Em Planejamento">Em Planejamento</option>
+                            <option value="Em Andamento">Em Andamento</option>
+                            <option value="Concluída">Concluída</option>
+                            <option value="Pausada">Pausada</option>
+                            <option value="Cancelada">Cancelada</option>
+                        </select>
+                    </div>
+                    <div className="flex gap-4 mb-6">
+                        <div className="flex-1">
+                            <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">Data de Início</label>
+                            <input
+                                type="date"
+                                id="startDate"
+                                name="startDate"
+                                value={projectData.startDate}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                                required
+                            />
+                        </div>
+                        <div className="flex-1">
+                            <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">Data de Término Prevista</label>
+                            <input
+                                type="date"
+                                id="endDate"
+                                name="endDate"
+                                value={projectData.endDate}
+                                onChange={handleChange}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                                required
+                            />
+                        </div>
+                    </div>
+
+                    <h3 className="font-semibold text-gray-800 mb-4 mt-6">Tarefas/Serviços do Projeto</h3>
+                    <div className="mb-4">
+                         <div className="flex items-center justify-between">
+                            <label htmlFor="addService" className="block text-sm font-medium text-gray-700">Lista de Tarefas</label>
+                            <button
+                                type="button"
+                                onClick={() => { setTaskToEdit(null); setIsAddTaskModalOpen(true); }}
+                                className="bg-green-600 text-white font-bold py-1 px-3 rounded-lg hover:bg-green-700 transition-colors text-sm flex items-center"
+                            >
+                                <Plus size={16} className="mr-1" /> Adicionar nova tarefa
+                            </button>
+                        </div>
+                        <p className="text-sm text-gray-500 mt-2">Adicione as etapas e serviços que comporão o cronograma do projeto.</p>
+
+                        {projectData.services.length === 0 ? (
+                            <p className="text-gray-500 text-sm mt-4 p-4 border rounded-md bg-gray-50">Nenhuma tarefa adicionada ainda. Clique em "+ Adicionar nova tarefa" para começar.</p>
+                        ) : (
+                            <ul className="divide-y divide-gray-200 mt-4 border rounded-md bg-white">
+                                {projectData.services.map((service, index) => (
+                                    <li key={service.id || index} className="py-3 px-4 flex items-center justify-between">
+                                        <div>
+                                            <p className="font-medium text-gray-900">{service.name}</p>
+                                            <p className="text-sm text-gray-500">Duração: {service.duration} | Custo Estimado: R$ {parseFloat(service.cost).toLocaleString('pt-BR')}</p>
+                                            <p className="text-xs text-gray-500">Início: {service.startDate} | Término: {service.endDate} | Unidade: {service.unit}</p>
+                                        </div>
+                                        <div className="flex items-center space-x-2">
+                                            <button type="button" onClick={() => handleEditTask(service)} className="text-blue-500 hover:text-blue-700">
+                                                <Edit size={16} />
+                                            </button>
+                                            <button type="button" onClick={() => handleDeleteTask(service.id)} className="text-red-500 hover:text-red-700">
+                                                <Trash2 size={16} />
+                                            </button>
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                </div>
+
+                <div className="flex-1 pl-6">
+                    <h3 className="font-semibold text-gray-800 mb-4">Convidar Equipe</h3>
+                    <div className="space-y-3">
+                        {mockTeamMembers.map(member => (
+                            <div key={member.id} className="flex items-center justify-between p-2 bg-gray-50 rounded-md">
+                                <span className="text-gray-800">{member.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={() => handleInviteToggle(member.id)}
+                                    className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                                        member.invited ? 'bg-red-500 text-white hover:bg-red-600' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                                    } transition-colors`}
+                                >
+                                    {member.invited ? 'Remover' : 'Adicionar'}
+                                </button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </form>
+            <AddTaskModal 
+                isOpen={isAddTaskModalOpen} 
+                onClose={() => setIsAddTaskModalOpen(false)} 
+                onSave={taskToEdit ? handleUpdateTask : handleAddTask} 
+                taskToEdit={taskToEdit}
+            />
+        </Modal>
+    );
+};
+
+const ProjectsListView = ({ projects, onProjectSelect }) => {
+    const [isCreateProjectModalOpen, setIsCreateProjectModalOpen] = useState(false);
+    const handleNewProjectSave = (newProjectData) => {
+        console.log("Salvando novo projeto:", newProjectData);
+    };
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <h1 className="text-3xl font-bold text-gray-800">Projetos</h1>
+                <button 
+                    onClick={() => setIsCreateProjectModalOpen(true)}
+                    className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                >
+                    <Plus size={20} className="mr-2" /> Novo Projeto
+                </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {projects.map(p => {
+                    const progress = Math.round(p.services.reduce((acc, s) => acc + s.progress, 0) / (p.services.length || 1));
+                    const statusStyle = p.status === 'Ongoing' ? "bg-blue-100 text-blue-800" : "bg-green-100 text-green-800";
+                    const avatarColors = ['bg-cyan-500', 'bg-indigo-500', 'bg-emerald-500', 'bg-amber-500'];
+                    return (
+                        <Card key={p.id} className="flex flex-col">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h3 className="font-bold text-lg text-gray-800">{p.name}</h3>
+                                    <p className="text-sm text-gray-500">{p.client}</p>
+                                </div>
+                                <span className={`px-2 py-1 text-xs font-semibold rounded-full ${statusStyle}`}>{p.status === 'Ongoing' ? 'Em Andamento' : 'Concluído'}</span>
+                            </div>
+                            <div className="mt-4 flex-grow">
+                                <div className="flex justify-between text-sm text-gray-600 mb-1">
+                                    <span>Progresso</span>
+                                    <span>{progress}%</span>
+                                </div>
+                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                    <div className="bg-[#CF1219] h-2 rounded-full" style={{ width: `${progress}%` }}></div>
+                                </div>
+                            </div>
+                            <div className="mt-6 flex justify-between items-center">
+                                <div className="flex -space-x-2">
+                                    {p.team.map((member, index) => (
+                                        <div key={member.id} className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold border-2 border-white ${avatarColors[index % avatarColors.length]}`}>
+                                            {member.avatar}
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={() => onProjectSelect(p)} className="text-sm font-medium text-[#CF1219] hover:text-red-700">Ver Detalhes</button>
+                            </div>
+                        </Card>
+                    );
+                })}
+            </div>
+            {isCreateProjectModalOpen && (
+                <CreateProjectModal 
+                    onClose={() => setIsCreateProjectModalOpen(false)} 
+                    onSave={handleNewProjectSave} 
+                />
+            )}
+        </div>
+    );
+};
+
+const CalendarView = ({ projects }) => {
+    const [filterProject, setFilterProject] = useState('all');
+    const [selectedDateEvents, setSelectedDateEvents] = useState([]);
+    const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+    const [eventModalContent, setEventModalContent] = useState(null);
+    const [displayDate, setDisplayDate] = useState(new Date());
+    const [isFilterModalOpen, setIsFilterModalOpen] = useState(false); // Novo estado para o modal de filtro
+
+    const today = new Date();
+    const currentMonth = displayDate.getMonth();
+    const currentYear = displayDate.getFullYear();
+
+    // Define cores para cada projeto para visualização no calendário
+    const projectColors = useMemo(() => {
+        const colors = ['#EF4444', '#3B82F6', '#10B981', '#F59E0B', '#6366F1', '#EC4899']; // Vermelho, Azul, Verde, Amarelo, Índigo, Rosa
+        const projectColorMap = {};
+        projects.forEach((p, index) => {
+            projectColorMap[p.name] = colors[index % colors.length];
+        });
+        return projectColorMap;
+    }, [projects]);
+
+    const allCalendarEvents = useMemo(() => {
+        let events = [];
+        projects.forEach(p => {
+            // Eventos do cronograma (início/fim de tarefas)
+            p.services.forEach(s => {
+                const startDate = new Date(s.startDate);
+                const endDate = new Date(s.endDate);
+                const durationDays = (endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24);
+
+                // Adiciona o evento para cada dia que ele abrange para visualização
+                for (let d = 0; d <= durationDays; d++) {
+                    const currentDate = new Date(startDate);
+                    currentDate.setDate(startDate.getDate() + d);
+                    
+                    events.push({
+                        id: `${p.id}-${s.id}-${d}`, // ID único para cada dia da tarefa
+                        date: currentDate.toISOString().split('T')[0],
+                        title: s.name,
+                        description: `Tarefa "${s.name}" do projeto "${p.name}".`,
+                        project: p.name,
+                        type: 'task',
+                        color: projectColors[p.name], // Cor do projeto
+                        isStart: d === 0,
+                        isEnd: d === durationDays,
+                        span: durationDays + 1 // Duração total para referência
+                    });
+                }
+            });
+            // Eventos de Daily Logs
+            p.dailyLogs.forEach(log => {
+                events.push({
+                    id: `log-${p.id}-${log.id}`,
+                    date: log.date,
+                    title: `RDO: ${p.name}`,
+                    description: log.notes,
+                    project: p.name,
+                    type: 'daily_log',
+                    color: '#6B7280' // Cor para RDOs
+                });
+            });
+        });
+        return events;
+    }, [projects, projectColors]);
+
+    const getEventsForDay = (day, month, year) => {
+        const dateString = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+        return allCalendarEvents.filter(event => {
+            const eventDate = event.date; // Já está no formato YYYY-MM-DD
+            const matchesProject = filterProject === 'all' ? true : event.project === filterProject;
+            return eventDate === dateString && matchesProject;
+        });
+    };
+
+    const handleDayClick = (day, month, year) => {
+        const events = getEventsForDay(day, month, year);
+        if (events.length > 0) {
+            setSelectedDateEvents(events);
+            setEventModalContent({ date: new Date(year, month, day), events });
+            setIsEventModalOpen(true);
+        } else {
+            setSelectedDateEvents([]);
+            setEventModalContent(null);
+            setIsEventModalOpen(false);
+        }
+    };
+
+    const daysInMonth = (month, year) => new Date(year, month + 1, 0).getDate();
+    const firstDayOfMonth = (month, year) => new Date(year, month, 1).getDay();
+
+    const totalDays = daysInMonth(currentMonth, currentYear);
+    const startDay = firstDayOfMonth(currentMonth, currentYear);
+
+    const calendarGrid = [];
+    for (let i = 0; i < startDay; i++) {
+        calendarGrid.push(null);
+    }
+    for (let i = 1; i <= totalDays; i++) {
+        calendarGrid.push(i);
+    }
+    while (calendarGrid.length % 7 !== 0) {
+        calendarGrid.push(null);
+    }
+
+    const weekDays = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+
+    const handleMonthChange = (offset) => {
+        setDisplayDate(prevDate => {
+            const newDate = new Date(prevDate.getFullYear(), prevDate.getMonth() + offset, 1);
+            return newDate;
+        });
+    };
+
+    const handleGoToToday = () => {
+        setDisplayDate(new Date());
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800 mb-8">Calendário de Obras</h1>
+            
+            <Card className="mb-6">
+                <div className="flex justify-between items-center mb-4">
+                    <button 
+                        onClick={() => setIsFilterModalOpen(true)}
+                        className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                    >
+                        <Filter size={20} className="mr-2" /> Filtrar
+                    </button>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={() => handleMonthChange(-1)} className="p-2 rounded-full hover:bg-gray-200">
+                            <ChevronLeft size={20} />
+                        </button>
+                        <h3 className="text-xl font-semibold">
+                            {displayDate.toLocaleString('pt-BR', { month: 'long', year: 'numeric' })}
+                        </h3>
+                        <button onClick={handleGoToToday} className="px-3 py-1 rounded-full text-sm font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300">Hoje</button>
+                        <button onClick={() => handleMonthChange(1)} className="p-2 rounded-full hover:bg-gray-200">
+                            <ChevronRight size={20} />
+                        </button>
+                    </div>
+                </div>
+                
+                {isFilterModalOpen && (
+                    <Modal title="Filtrar Calendário" onClose={() => setIsFilterModalOpen(false)}>
+                        <div className="p-6 space-y-6">
+                            <div>
+                                <span className="text-lg font-medium text-gray-700 block mb-2">Projeto:</span>
+                                <div className="relative w-full">
+                                    <select 
+                                        id="calendarFilterProject" 
+                                        value={filterProject} 
+                                        onChange={(e) => setFilterProject(e.target.value)}
+                                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm text-sm"
+                                    >
+                                        <option value="all">Todos</option>
+                                        {projects.map(p => <option key={p.id} value={p.name}>{p.name}</option>)}
+                                    </select>
+                                    <Search size={18} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 border-t flex justify-end">
+                            <button onClick={() => setIsFilterModalOpen(false)} className="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-lg hover:bg-gray-400 transition-colors">
+                                Aplicar Filtros
+                            </button>
+                        </div>
+                    </Modal>
+                )}
+
+                <div className="grid grid-cols-7 gap-px bg-gray-200 border border-gray-200">
+                    {weekDays.map(day => <div key={day} className="text-center font-medium py-2 bg-gray-100 text-sm text-gray-600">{day}</div>)}
+                    {calendarGrid.map((day, index) => (
+                        <div 
+                            key={index} 
+                            className={`p-2 h-24 bg-white ${day === null ? 'bg-gray-50 text-gray-400' : 'cursor-pointer hover:bg-gray-100'} relative overflow-hidden`}
+                            onClick={() => day && handleDayClick(day, currentMonth, currentYear)}
+                        >
+                            <span className="font-medium text-sm">{day > 0 ? day : ''}</span>
+                            {day && getEventsForDay(day, currentMonth, currentYear).map(event => (
+                                <div key={event.id} 
+                                     className="mt-1 px-1 py-0.5 rounded-md text-xs font-semibold text-white truncate"
+                                     style={{ backgroundColor: event.color }}
+                                     title={`${event.title} (${event.project})`}
+                                >
+                                    {event.title}
+                                </div>
+                            ))}
+                        </div>
+                    ))}
+                </div>
+            </Card>
+
+            {isEventModalOpen && eventModalContent && (
+                <Modal title={`Eventos em ${eventModalContent.date.toLocaleDateString('pt-BR')}`} onClose={() => setIsEventModalOpen(false)} className="max-w-xl">
+                    <div className="p-4 space-y-4">
+                        {eventModalContent.events.map(event => (
+                            <div key={event.id} className="border p-3 rounded-md bg-gray-50">
+                                <h4 className="font-semibold text-gray-800">{event.title}</h4>
+                                <p className="text-sm text-gray-600">{event.description}</p>
+                                <p className="text-xs text-gray-500 mt-1">Projeto: {event.project}</p>
+                                {event.type === 'daily_log' && <p className="text-xs text-gray-500">Tipo: Registro Diário de Obra</p>}
+                                {event.type.includes('task') && <p className="text-xs text-gray-500">Tipo: Tarefa do Cronograma</p>}
+                            </div>
+                        ))}
+                    </div>
+                </Modal>
+            )}
+        </div>
+    );
+};
+
+const ClientsView = () => {
+    const [clients, setClients] = useState(mockClientsData);
+    const [isClientModalOpen, setIsClientModalOpen] = useState(false);
+    const [clientToEdit, setClientToEdit] = useState(null);
+
+    const handleAddOrUpdateClient = (newClientData) => {
+        if (clientToEdit) {
+            setClients(clients.map(c => c.id === clientToEdit.id ? { ...newClientData, id: c.id } : c));
+        } else {
+            setClients([...clients, { ...newClientData, id: clients.length + 1, projects: 0 }]);
+        }
+        setIsClientModalOpen(false);
+        setClientToEdit(null);
+    };
+
+    const handleDeleteClient = (id) => {
+        if (window.confirm("Tem certeza que deseja remover este cliente?")) {
+            setClients(clients.filter(c => c.id !== id));
+        }
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <h1 className="text-3xl font-bold text-gray-800">Clientes</h1>
+                <button 
+                    onClick={() => { setClientToEdit(null); setIsClientModalOpen(true); }}
+                    className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                >
+                    <Plus size={20} className="mr-2" /> Novo Cliente
+                </button>
+            </div>
+            <Card>
+                <ul className="divide-y divide-gray-200">
+                    {clients.map(client => (
+                        <li key={client.id} className="py-4 flex justify-between items-center">
+                            <div>
+                                <p className="text-lg font-medium text-gray-900">{client.name}</p>
+                                <p className="text-sm text-gray-500">Contato: {client.contact}</p>
+                                <p className="text-sm text-gray-500">CNPJ/CPF: {client.cnpj || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Endereço: {client.address || 'N/A'}</p>
+                                {client.notes && <p className="text-xs text-gray-600 mt-1">Obs: {client.notes}</p>}
+                                <p className="text-sm text-gray-500">{client.projects} projeto(s) associado(s)</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => { setClientToEdit(client); setIsClientModalOpen(true); }} className="text-blue-600 hover:text-blue-800">
+                                    <Edit size={18} />
+                                </button>
+                                <button onClick={() => handleDeleteClient(client.id)} className="text-red-600 hover:text-red-800">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </Card>
+            {isClientModalOpen && (
+                <ClientFormModal 
+                    isOpen={isClientModalOpen} 
+                    onClose={() => setIsClientModalOpen(false)} 
+                    onSave={handleAddOrUpdateClient} 
+                    clientToEdit={clientToEdit} 
+                />
+            )}
+        </div>
+    );
+};
+
+const ClientFormModal = ({ isOpen, onClose, onSave, clientToEdit }) => {
+    const [clientData, setClientData] = useState(clientToEdit || { name: '', contact: '', cnpj: '', address: '', notes: '' });
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setClientData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(clientData);
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal title={clientToEdit ? "Editar Cliente" : "Adicionar Novo Cliente"} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                    <label htmlFor="clientName" className="block text-sm font-medium text-gray-700">Nome do Cliente</label>
+                    <input type="text" id="clientName" name="name" value={clientData.name} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="clientContact" className="block text-sm font-medium text-gray-700">Contato (Email ou Telefone)</label>
+                    <input type="text" id="clientContact" name="contact" value={clientData.contact} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="clientCnpj" className="block text-sm font-medium text-gray-700">CNPJ/CPF</label>
+                    <input type="text" id="clientCnpj" name="cnpj" value={clientData.cnpj} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Ex: 00.000.000/0001-00" />
+                </div>
+                <div>
+                    <label htmlFor="clientAddress" className="block text-sm font-medium text-gray-700">Endereço Completo</label>
+                    <textarea id="clientAddress" name="address" value={clientData.address} onChange={handleChange} rows="2" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Rua, Número, Bairro, Cidade, Estado, CEP"></textarea>
+                </div>
+                <div>
+                    <label htmlFor="clientNotes" className="block text-sm font-medium text-gray-700">Observações/Notas</label>
+                    <textarea id="clientNotes" name="notes" value={clientData.notes} onChange={handleChange} rows="3" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+                </div>
+                <button type="submit" className="w-full bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                    {clientToEdit ? "Salvar Alterações" : "Adicionar Cliente"}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+
+const TeamView = () => {
+    const [teamMembers, setTeamMembers] = useState(mockTeamData);
+    const [isMemberModalOpen, setIsMemberModalOpen] = useState(false);
+    const [memberToEdit, setMemberToEdit] = useState(null);
+
+    const handleAddOrUpdateMember = (newMemberData) => {
+        if (memberToEdit) {
+            setTeamMembers(teamMembers.map(m => m.id === memberToEdit.id ? { ...newMemberData, id: m.id } : m));
+        } else {
+            setTeamMembers([...teamMembers, { ...newMemberData, id: teamMembers.length + 1, projects: [] }]);
+        }
+        setIsMemberModalOpen(false);
+        setMemberToEdit(null);
+    };
+
+    const handleDeleteMember = (id) => {
+        if (window.confirm("Tem certeza que deseja remover este membro da equipe?")) {
+            setTeamMembers(teamMembers.filter(m => m.id !== id));
+        }
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <h1 className="text-3xl font-bold text-gray-800">Equipe</h1>
+                <button 
+                    onClick={() => { setMemberToEdit(null); setIsMemberModalOpen(true); }}
+                    className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                >
+                    <Plus size={20} className="mr-2" /> Novo Membro
+                </button>
+            </div>
+            <Card>
+                <ul className="divide-y divide-gray-200">
+                    {teamMembers.map(member => (
+                        <li key={member.id} className="py-4 flex justify-between items-center">
+                            <div>
+                                <p className="text-lg font-medium text-gray-900">{member.name}</p>
+                                <p className="text-sm text-gray-500">{member.role} - {member.email}</p>
+                                <p className="text-sm text-gray-500">Telefone: {member.phone || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">CPF: {member.cpf || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Contratado em: {member.hiringDate || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Nível de Acesso: {member.accessLevel || 'N/A'}</p>
+                                {member.notes && <p className="text-xs text-gray-600 mt-1">Obs: {member.notes}</p>}
+                                <p className="text-xs text-gray-500">Projetos: {member.projects.join(', ') || 'Nenhum'}</p>
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => { setMemberToEdit(member); setIsMemberModalOpen(true); }} className="text-blue-600 hover:text-blue-800">
+                                    <Edit size={18} />
+                                </button>
+                                <button onClick={() => handleDeleteMember(member.id)} className="text-red-600 hover:text-red-800">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </Card>
+            {isMemberModalOpen && (
+                <TeamMemberFormModal
+                    isOpen={isMemberModalOpen}
+                    onClose={() => setIsMemberModalOpen(false)}
+                    onSave={handleAddOrUpdateMember}
+                    memberToEdit={memberToEdit}
+                />
+            )}
+        </div>
+    );
+};
+
+const TeamMemberFormModal = ({ isOpen, onClose, onSave, memberToEdit }) => {
+    const [memberData, setMemberData] = useState(memberToEdit || { name: '', role: '', email: '', phone: '', cpf: '', hiringDate: '', accessLevel: '', notes: '' });
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setMemberData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(memberData);
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    const accessLevels = ["Administrador", "Gerente de Projeto", "Engenheiro(a)", "Mestre de Obras", "Operário(a)", "Fiscal"];
+
+    return (
+        <Modal title={memberToEdit ? "Editar Membro da Equipe" : "Adicionar Novo Membro"} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                    <label htmlFor="memberName" className="block text-sm font-medium text-gray-700">Nome</label>
+                    <input type="text" id="memberName" name="name" value={memberData.name} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="memberRole" className="block text-sm font-medium text-gray-700">Função</label>
+                    <input type="text" id="memberRole" name="role" value={memberData.role} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="memberEmail" className="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="memberEmail" name="email" value={memberData.email} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="memberPhone" className="block text-sm font-medium text-gray-700">Telefone</label>
+                    <input type="text" id="memberPhone" name="phone" value={memberData.phone} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="(XX) XXXXX-XXXX" />
+                </div>
+                <div>
+                    <label htmlFor="memberCpf" className="block text-sm font-medium text-gray-700">CPF</label>
+                    <input type="text" id="memberCpf" name="cpf" value={memberData.cpf} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="XXX.XXX.XXX-XX" />
+                </div>
+                <div>
+                    <label htmlFor="memberHiringDate" className="block text-sm font-medium text-gray-700">Data de Contratação</label>
+                    <input type="date" id="memberHiringDate" name="hiringDate" value={memberData.hiringDate} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                </div>
+                <div>
+                    <label htmlFor="memberAccessLevel" className="block text-sm font-medium text-gray-700">Nível de Acesso</label>
+                    <select id="memberAccessLevel" name="accessLevel" value={memberData.accessLevel} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2">
+                        <option value="">Selecione</option>
+                        {accessLevels.map(level => <option key={level} value={level}>{level}</option>)}
+                    </select>
+                </div>
+                 <div>
+                    <label htmlFor="memberNotes" className="block text-sm font-medium text-gray-700">Observações/Notas</label>
+                    <textarea id="memberNotes" name="notes" value={memberData.notes} onChange={handleChange} rows="3" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+                </div>
+                <button type="submit" className="w-full bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                    {memberToEdit ? "Salvar Alterações" : "Adicionar Membro"}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+const SuppliersView = () => {
+    const [suppliers, setSuppliers] = useState(mockSuppliersData);
+    const [isSupplierModalOpen, setIsSupplierModalOpen] = useState(false);
+    const [supplierToEdit, setSupplierToEdit] = useState(null);
+
+    const handleAddOrUpdateSupplier = (newSupplierData) => {
+        if (supplierToEdit) {
+            setSuppliers(suppliers.map(s => s.id === supplierToEdit.id ? { ...newSupplierData, id: s.id } : s));
+        } else {
+            setSuppliers([...suppliers, { ...newSupplierData, id: suppliers.length + 1 }]);
+        }
+        setIsSupplierModalOpen(false);
+        setSupplierToEdit(null);
+    };
+
+    const handleDeleteSupplier = (id) => {
+        if (window.confirm("Tem certeza que deseja remover este fornecedor?")) {
+            setSuppliers(suppliers.filter(s => s.id !== id));
+        }
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
+                <h1 className="text-3xl font-bold text-gray-800">Fornecedores</h1>
+                <button 
+                    onClick={() => { setSupplierToEdit(null); setIsSupplierModalOpen(true); }}
+                    className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg flex items-center hover:bg-red-700 transition-colors"
+                >
+                    <Plus size={20} className="mr-2" /> Novo Fornecedor
+                </button>
+            </div>
+            <Card>
+                <ul className="divide-y divide-gray-200">
+                    {suppliers.map(supplier => (
+                        <li key={supplier.id} className="py-4 flex justify-between items-center">
+                            <div>
+                                <p className="text-lg font-medium text-gray-900">{supplier.name}</p>
+                                <p className="text-sm text-gray-500">Contato: {supplier.contact}</p>
+                                <p className="text-sm text-gray-500">CNPJ: {supplier.cnpj || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Endereço: {supplier.address || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Materiais: {supplier.materials || 'Nenhum'}</p>
+                                <p className="text-sm text-gray-500">Prazo de Entrega: {supplier.deliveryTime || 'N/A'}</p>
+                                <p className="text-sm text-gray-500">Cond. Pagamento: {supplier.paymentTerms || 'N/A'}</p>
+                                {supplier.notes && <p className="text-xs text-gray-600 mt-1">Obs: {supplier.notes}</p>}
+                            </div>
+                            <div className="flex items-center space-x-2">
+                                <button onClick={() => { setSupplierToEdit(supplier); setIsSupplierModalOpen(true); }} className="text-blue-600 hover:text-blue-800">
+                                    <Edit size={18} />
+                                </button>
+                                <button onClick={() => handleDeleteSupplier(supplier.id)} className="text-red-600 hover:text-red-800">
+                                    <Trash2 size={18} />
+                                </button>
+                            </div>
+                        </li>
+                    ))}
+                </ul>
+            </Card>
+            {isSupplierModalOpen && (
+                <SupplierFormModal
+                    isOpen={isSupplierModalOpen}
+                    onClose={() => setIsSupplierModalOpen(false)}
+                    onSave={handleAddOrUpdateSupplier}
+                    supplierToEdit={supplierToEdit}
+                />
+            )}
+        </div>
+    );
+};
+
+const SupplierFormModal = ({ isOpen, onClose, onSave, supplierToEdit }) => {
+    const [supplierData, setSupplierData] = useState(supplierToEdit || { name: '', contact: '', materials: '', cnpj: '', address: '', notes: '', deliveryTime: '', paymentTerms: '' });
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setSupplierData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave(supplierData);
+        onClose();
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <Modal title={supplierToEdit ? "Editar Fornecedor" : "Adicionar Novo Fornecedor"} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                    <label htmlFor="supplierName" className="block text-sm font-medium text-gray-700">Nome do Fornecedor</label>
+                    <input type="text" id="supplierName" name="name" value={supplierData.name} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="supplierContact" className="block text-sm font-medium text-gray-700">Contato (Email ou Telefone)</label>
+                    <input type="text" id="supplierContact" name="contact" value={supplierData.contact} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" required />
+                </div>
+                <div>
+                    <label htmlFor="supplierCnpj" className="block text-sm font-medium text-gray-700">CNPJ</label>
+                    <input type="text" id="supplierCnpj" name="cnpj" value={supplierData.cnpj} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Ex: 00.000.000/0001-00" />
+                </div>
+                <div>
+                    <label htmlFor="supplierAddress" className="block text-sm font-medium text-gray-700">Endereço Completo</label>
+                    <textarea id="supplierAddress" name="address" value={supplierData.address} onChange={handleChange} rows="2" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Rua, Número, Bairro, Cidade, Estado, CEP"></textarea>
+                </div>
+                <div>
+                    <label htmlFor="supplierMaterials" className="block text-sm font-medium text-gray-700">Materiais Fornecidos</label>
+                    <textarea id="supplierMaterials" name="materials" value={supplierData.materials} onChange={handleChange} rows="2" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Ex: Cimento, Areia, Brita"></textarea>
+                </div>
+                <div>
+                    <label htmlFor="supplierDeliveryTime" className="block text-sm font-medium text-gray-700">Prazo Médio de Entrega</label>
+                    <input type="text" id="supplierDeliveryTime" name="deliveryTime" value={supplierData.deliveryTime} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Ex: 5 dias úteis" />
+                </div>
+                <div>
+                    <label htmlFor="supplierPaymentTerms" className="block text-sm font-medium text-gray-700">Condições de Pagamento</label>
+                    <input type="text" id="supplierPaymentTerms" name="paymentTerms" value={supplierData.paymentTerms} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" placeholder="Ex: 30/60/90 dias, À vista" />
+                </div>
+                <div>
+                    <label htmlFor="supplierNotes" className="block text-sm font-medium text-gray-700">Observações/Notas</label>
+                    <textarea id="supplierNotes" name="notes" value={supplierData.notes} onChange={handleChange} rows="3" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+                </div>
+                <button type="submit" className="w-full bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                    {supplierToEdit ? "Salvar Alterações" : "Adicionar Fornecedor"}
+                </button>
+            </form>
+        </Modal>
+    );
+};
+
+const SettingsView = () => {
+    const [settings, setSettings] = useState({
+        theme: 'light',
+        notificationsEnabled: true,
+        defaultUnit: 'm²',
+        enableAdvancedReports: false,
+    });
+
+    const handleChange = (e) => {
+        const { name, value, type, checked } = e.target;
+        setSettings(prev => ({
+            ...prev,
+            [name]: type === 'checkbox' ? checked : value
+        }));
+    };
+
+    const handleSaveSettings = (e) => {
+        e.preventDefault();
+        console.log("Configurações salvas:", settings);
+        alert("Configurações salvas com sucesso!");
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800 mb-8">Configurações do Sistema</h1>
+            <Card>
+                <form onSubmit={handleSaveSettings} className="space-y-6">
+                    <div>
+                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Aparência</h3>
+                        <label htmlFor="theme" className="block text-sm font-medium text-gray-700">Tema</label>
+                        <select id="theme" name="theme" value={settings.theme} onChange={handleChange} className="mt-1 block w-60 border border-gray-300 rounded-md shadow-sm p-2">
+                            <option value="light">Claro</option>
+                            <option value="dark">Escuro</option>
+                        </select>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Notificações</h3>
+                        <div className="flex items-center">
+                            <input type="checkbox" id="notificationsEnabled" name="notificationsEnabled" checked={settings.notificationsEnabled} onChange={handleChange} className="h-4 w-4 text-[#CF1219] border-gray-300 rounded focus:ring-[#CF1219]" />
+                            <label htmlFor="notificationsEnabled" className="ml-2 block text-sm text-gray-900">Habilitar Notificações Globais</label>
+                        </div>
+                         <div className="mt-4 flex items-center">
+                            <input type="checkbox" id="enableAdvancedReports" name="enableAdvancedReports" checked={settings.enableAdvancedReports} onChange={handleChange} className="h-4 w-4 text-[#CF1219] border-gray-300 rounded focus:ring-[#CF1219]" />
+                            <label htmlFor="enableAdvancedReports" className="ml-2 block text-sm text-gray-900">Habilitar Relatórios Avançados (financeiro, desempenho)</label>
+                        </div>
+                    </div>
+                     <div>
+                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Unidades Padrão</h3>
+                        <label htmlFor="defaultUnit" className="block text-sm font-medium text-gray-700">Unidade de Medida Padrão</label>
+                        <select id="defaultUnit" name="defaultUnit" value={settings.defaultUnit} onChange={handleChange} className="mt-1 block w-60 border border-gray-300 rounded-md shadow-sm p-2">
+                            <option value="m">Metro (m)</option>
+                            <option value="m2">Metro Quadrado (m²)</option>
+                            <option value="m3">Metro Cúbico (m³)</option>
+                            <option value="un">Unidade (un)</option>
+                            <option value="kg">Quilograma (kg)</option>
+                        </select>
+                    </div>
+                    <div>
+                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Gestão de Dados</h3>
+                        <p className="text-gray-600 text-sm mb-2">Opções para backup e importação/exportação de dados.</p>
+                        <button type="button" className="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors mr-2">Fazer Backup Agora</button>
+                        <button type="button" className="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Importar/Exportar Dados</button>
+                    </div>
+                     <div>
+                        <h3 className="text-xl font-semibold text-gray-800 mb-4">Modelos Personalizados</h3>
+                        <p className="text-gray-600 text-sm mb-2">Gerencie modelos para RDOs e outros relatórios.</p>
+                        <button type="button" className="bg-gray-200 text-gray-700 py-2 px-4 rounded-lg hover:bg-gray-300 transition-colors">Gerenciar Modelos</button>
+                    </div>
+                    <button type="submit" className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                        Salvar Configurações
+                    </button>
+                </form>
+            </Card>
+            <p className="mt-4 text-sm text-gray-600">Para configurar seu perfil pessoal (nome, foto, etc.), clique no seu nome "Lucas Silva" no cabeçalho.</p>
+        </div>
+    );
+};
+
+const ReportsView = () => {
+    // Mock de alertas críticos e projeções preditivas para o ReportsView
+    const criticalAlerts = useMemo(() => [
+        { id: 1, type: 'budget', message: 'Orçamento da Obra Família Simões', value: '95% Consumido', project: 'Obra - Família Simões', severity: 'high', icon: DollarSign, color: 'text-red-500' },
+        { id: 2, type: 'task_late', message: 'Tarefa "Elétrica"', value: '3 dias de atraso', project: 'Obra - Família Simões', severity: 'medium', icon: Clock, color: 'text-yellow-500' },
+        { id: 3, type: 'material_shortage', message: 'Material "Cimento"', value: 'Em falta', project: 'Edifício Alfa', severity: 'high', icon: HardHat, color: 'text-red-500' },
+        { id: 4, type: 'task_late', message: 'Tarefa "Terraplanagem"', value: '1 dia de atraso', project: 'Edifício Alfa', severity: 'low', icon: Clock, color: 'text-yellow-500' },
+    ], []);
+
+    const predictiveAnalytics = useMemo(() => [
+        { id: 1, message: 'Orçamento Obra Família Simões', value: '+15% Excedente', type: 'finance_risk', icon: DollarSign, color: 'text-red-500' },
+        { id: 2, message: 'Tarefa "Acabamentos"', value: 'Acelerar equipe', type: 'schedule_opt', icon: Users, color: 'text-blue-500' },
+        { id: 3, message: 'Progresso "Estrutura"', value: 'Atraso de 2 meses', type: 'schedule_risk', icon: Clock, color: 'text-red-500' },
+    ], []);
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800 mb-8">Relatórios</h1>
+            
+            {/* Painel de Alertas Proativos */}
+            <Card className="mb-8 p-4 bg-yellow-50 border-yellow-200">
+                <h3 className="font-semibold text-lg text-yellow-800 mb-3 flex items-center">
+                    <AlertTriangle size={20} className="mr-2" /> Alertas Proativos
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {criticalAlerts.length > 0 ? (
+                        criticalAlerts.map(alert => (
+                            <div key={alert.id} className={`flex items-center p-3 rounded-lg ${alert.severity === 'high' ? 'bg-red-100' : 'bg-yellow-100'} border border-current`}>
+                                <alert.icon size={24} className={`${alert.color} mr-3 flex-shrink-0`} />
+                                <div>
+                                    <p className={`font-bold text-sm ${alert.color}`}>{alert.message}</p>
+                                    <p className="text-xs text-gray-700">{alert.value} - {alert.project}</p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-yellow-700">Nenhum alerta crítico no momento.</p>
+                    )}
+                </div>
+            </Card>
+
+            {/* Análise Preditiva e Recomendações */}
+            <Card className="mb-8 p-4 bg-blue-50 border-blue-200">
+                <h3 className="font-semibold text-lg text-blue-800 mb-3 flex items-center">
+                    <TrendingUp size={20} className="mr-2" /> Análise Preditiva e Recomendações
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {predictiveAnalytics.length > 0 ? (
+                        predictiveAnalytics.map(analysis => (
+                            <div key={analysis.id} className={`flex items-center p-3 rounded-lg ${analysis.color.replace('text', 'bg').replace('-500', '-100')} border border-current`}>
+                                <analysis.icon size={24} className={`${analysis.color} mr-3 flex-shrink-0`} />
+                                <div>
+                                    <p className={`font-bold text-sm ${analysis.color}`}>{analysis.message}</p>
+                                    <p className="text-xs text-gray-700">{analysis.value}</p>
+                                </div>
+                            </div>
+                        ))
+                    ) : (
+                        <p className="text-sm text-blue-700">Nenhuma projeção ou recomendação preditiva no momento.</p>
+                    )}
+                </div>
+            </Card>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <Card>
+                    <h3 className="font-semibold text-gray-800 mb-4">Relatório de Desempenho Financeiro</h3>
+                    <p className="text-gray-600 text-sm">Visão consolidada de orçamento vs. custo real para todos os projetos.</p>
+                    <button className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">Gerar Relatório</button>
+                </Card>
+                <Card>
+                    <h3 className="font-semibold text-gray-800 mb-4">Relatório de Progresso Físico</h3>
+                    <p className="text-gray-600 text-sm">Avanço das etapas por projeto, comparando planejado vs. realizado.</p>
+                    <button className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">Gerar Relatório</button>
+                </Card>
+                <Card>
+                    <h3 className="font-semibold text-gray-800 mb-4">Análise de Desvio de Prazo</h3>
+                    <p className="text-gray-600 text-sm">Identifica projetos e tarefas com atrasos ou adiantamentos significativos.</p>
+                    <button className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">Gerar Relatório</button>
+                </Card>
+                <Card>
+                    <h3 className="font-semibold text-gray-800 mb-4">Relatório de Utilização de Recursos</h3>
+                    <p className="text-gray-600 text-sm">Detalha o uso de mão de obra, materiais e equipamentos por projeto.</p>
+                    <button className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">Gerar Relatório</button>
+                </Card>
+                <Card>
+                    <h3 className="font-semibold text-gray-800 mb-4">Relatório de Ocorrências e Riscos</h3>
+                    <p className="text-gray-600 text-sm">Sumário dos imprevistos e ações corretivas registradas nos RDOs.</p>
+                    <button className="mt-4 bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600 transition-colors">Gerar Relatório</button>
+                </Card>
+            </div>
+        </div>
+    );
+};
+
+const ProfileView = () => {
+    const [profileData, setProfileData] = useState({
+        name: 'Lucas Silva',
+        email: 'lucas.silva@example.com',
+        role: 'Analista Financeiro / Estudante Eng. Civil',
+        phone: '(XX) XXXXX-XXXX',
+        address: 'Rua Exemplo, 123, Bairro, Cidade',
+        bio: 'Apaixonado por economia, dados e por resolver problemas reais com soluções inteligentes e aplicáveis.',
+    });
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setProfileData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleSaveProfile = (e) => {
+        e.preventDefault();
+        console.log("Perfil salvo:", profileData);
+        alert("Perfil atualizado com sucesso!");
+    };
+
+    return (
+        <div className="p-4 md:p-8 animate-fade-in">
+            <h1 className="text-3xl font-bold text-gray-800 mb-8">Meu Perfil</h1>
+            <Card>
+                <form onSubmit={handleSaveProfile} className="space-y-6">
+                    <div className="flex items-center space-x-4">
+                        <div className="w-24 h-24 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-5xl font-bold">LS</div>
+                        <div>
+                            <h3 className="text-xl font-semibold text-gray-800">{profileData.name}</h3>
+                            <p className="text-sm text-gray-600">{profileData.role}</p>
+                            <button type="button" className="mt-2 text-blue-600 hover:underline text-sm">Alterar Foto</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label htmlFor="profileName" className="block text-sm font-medium text-gray-700">Nome Completo</label>
+                        <input type="text" id="profileName" name="name" value={profileData.name} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                    </div>
+                    <div>
+                        <label htmlFor="profileEmail" className="block text-sm font-medium text-gray-700">Email</label>
+                        <input type="email" id="profileEmail" name="email" value={profileData.email} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                    </div>
+                     <div>
+                        <label htmlFor="profileRole" className="block text-sm font-medium text-gray-700">Cargo / Função</label>
+                        <input type="text" id="profileRole" name="role" value={profileData.role} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                    </div>
+                    <div>
+                        <label htmlFor="profilePhone" className="block text-sm font-medium text-gray-700">Telefone</label>
+                        <input type="text" id="profilePhone" name="phone" value={profileData.phone} onChange={handleChange} className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2" />
+                    </div>
+                     <div>
+                        <label htmlFor="profileAddress" className="block text-sm font-medium text-gray-700">Endereço</label>
+                        <textarea id="profileAddress" name="address" value={profileData.address} onChange={handleChange} rows="2" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+                    </div>
+                    <div>
+                        <label htmlFor="profileBio" className="block text-sm font-medium text-gray-700">Bio</label>
+                        <textarea id="profileBio" name="bio" value={profileData.bio} onChange={handleChange} rows="4" className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"></textarea>
+                    </div>
+                    <button type="submit" className="bg-[#CF1219] text-white font-bold py-2 px-4 rounded-lg hover:bg-red-700 transition-colors">
+                        Salvar Perfil
+                    </button>
+                </form>
+            </Card>
+        </div>
+    );
+};
+
+
+const CommunicationModule = ({ project }) => {
+    const [messages, setMessages] = useState([
+        { id: 1, user: "João Silva", text: "Bom dia equipe! Alguma atualização na estrutura?", time: "08:30" },
+        { id: 2, user: "Você", text: "Estrutura avançou 5m² hoje. Anexo fotos no RDO.", time: "09:00" },
+    ]);
+    const [newMessage, setNewMessage] = useState('');
+
+    const handleSendMessage = () => {
+        if (newMessage.trim()) {
+            setMessages(prev => [...prev, { id: prev.length + 1, user: "Você", text: newMessage, time: new Date().toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'}) }]);
+            setNewMessage('');
+        }
+    };
+
+    return (
+        <Card className="h-96 flex flex-col">
+            <h3 className="font-semibold mb-4 text-gray-800 flex items-center">
+                <MessageSquare size={18} className="mr-2" /> Comunicação do Projeto: {project.name}
+            </h3>
+            <div className="flex-1 overflow-y-auto border p-3 rounded-md bg-gray-50 mb-4">
+                {messages.map(msg => (
+                    <div key={msg.id} className={`mb-2 ${msg.user === 'Você' ? 'text-right' : 'text-left'}`}>
+                        <span className="text-xs text-gray-500">{msg.user} - {msg.time}</span>
+                        <p className={`p-2 rounded-lg inline-block ${msg.user === 'Você' ? 'bg-blue-500 text-white' : 'bg-gray-300 text-gray-800'}`}>
+                            {msg.text}
+                        </p>
+                    </div>
+                ))}
+            </div>
+            <div className="flex">
+                <input
+                    type="text"
+                    value={newMessage}
+                    onChange={(e) => setNewMessage(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
+                    placeholder="Digite sua mensagem..."
+                    className="flex-1 p-2 border rounded-l-md focus:outline-none focus:ring-2 focus:ring-[#CF1219]"
+                />
+                <button onClick={handleSendMessage} className="bg-[#CF1219] text-white p-2 rounded-r-md hover:bg-red-700">
+                    Enviar
+                </button>
+            </div>
+        </Card>
+    );
+};
+
+
+const ProjectDetailView = ({ project, onBack, currentPage, setCurrentPage }) => {
+    const handleRequestApproval = () => {
+        alert(`Solicitação de aprovação de alteração de orçamento (>10%) enviada para o projeto ${project.name}! (Simulado)`);
+        console.log(`Solicitação de aprovação para ${project.name} - ${new Date().toLocaleString()}`);
+    };
+
+    const renderContent = () => {
+        switch(currentPage) {
+            case 'project_overview':
+                return <ProjectOverviewTab project={project} />;
+            case 'project_gantt':
+                return <ProjectGanttTab project={project} />;
+            case 'project_financials':
+                return <ProjectFinancialsTab project={project} onRequestApproval={handleRequestApproval} />;
+            case 'project_rdo':
+                return <ProjectRDOTab project={project} />;
+            case 'project_documents':
+                return <ProjectDocumentsTab project={project} />;
+            default:
+                return <ProjectOverviewTab project={project} />;
+        }
+    };
+    return (
+        <div className="flex-1 flex flex-col">
+            <div className="p-4 md:p-8 bg-gray-100">
+                {renderContent()}
+                {/* Módulo de Comunicação Integrada pode ser flutuante ou em uma nova aba */}
+                <div className="mt-8">
+                    <CommunicationModule project={project} />
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default function App() {
+  const [history, setHistory] = useState([{ page: "painel", project: null }]);
+  const [historyIndex, setHistoryIndex] = useState(0);
+  const [isLoading, setIsLoading] = useState(false); // Novo estado para o loading overlay
+
+  const currentNavigationState = history[historyIndex];
+  const currentPage = currentNavigationState.page;
+  const selectedProject = currentNavigationState.project;
+
+  // Modificado para aceitar um parâmetro 'replace' para não adicionar ao histórico
+  const navigateTo = (page, project = null, replace = false) => {
+    const newState = { page, project };
+    // Evita adicionar estados duplicados se a navegação é para a mesma página/projeto
+    if (JSON.stringify(newState) === JSON.stringify(currentNavigationState) && !replace) return;
+
+    let newHistory;
+    if (replace) {
+        // Substitui o estado atual no histórico (usado por breadcrumbs, por exemplo)
+        newHistory = [...history.slice(0, historyIndex), newState];
+    } else {
+        // Adiciona um novo estado e trunca o histórico se houver "avanços" não usados
+        newHistory = history.slice(0, historyIndex + 1);
+        newHistory.push(newState);
+    }
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+  };
+
+  const handleSetCurrentPage = (page) => {
+    if (page.startsWith("project_")) {
+        if(selectedProject) {
+            navigateTo(page, selectedProject);
+        }
+    } else {
+        navigateTo(page, null);
+    }
+  };
+
+  const handleSelectProject = (project) => {
+    navigateTo('project_overview', project);
+  };
+
+  const handleBackToProjects = () => {
+    navigateTo('projects', null);
+  };
+
+  const handleNavBack = () => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+    }
+  };
+
+  const handleNavForward = () => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+    }
+  };
+
+  const handleSearchResultClick = (result) => {
+      const project = initialProjectsData.find(p => p.id === (result.projectId || result.id));
+      if (project) {
+          if (result.type === 'Projeto' || result.type === 'Projeto em Andamento') navigateTo('project_overview', project);
+          if (result.type === 'Tarefa') navigateTo('project_gantt', project);
+          if (result.type === 'Documento') navigateTo('project_documents', project);
+      }
+  };
+
+  // Integração do hook de atalhos de teclado
+  useKeyboardShortcuts(handleNavBack, handleNavForward);
+
+  const renderPage = () => {
+    // Exemplo de como você poderia usar isLoading para simular um carregamento
+    // setIsLoading(true); // Ativar loading
+    // setTimeout(() => setIsLoading(false), 1000); // Desativar loading após 1 segundo
+
+    if (selectedProject) {
+        return (
+            <ProjectDetailView 
+                project={selectedProject} 
+                onBack={handleBackToProjects} 
+                currentPage={currentPage} 
+                setCurrentPage={handleSetCurrentPage} 
+            />
+        );
+    }
+
+    switch (currentPage) {
+      case "painel":
+        return <DashboardView projects={initialProjectsData} onProjectSelect={handleSelectProject} />;
+      case "projects":
+        return <ProjectsListView projects={initialProjectsData} onProjectSelect={handleSelectProject} />;
+      case "calendar":
+        return <CalendarView projects={initialProjectsData} />;
+      case "reports":
+        return <ReportsView />;
+      case "clients":
+        return <ClientsView />;
+      case "team":
+        return <TeamView />;
+      case "suppliers":
+        return <SuppliersView />;
+      case "settings":
+        return <SettingsView />;
+      case "profile": // Nova rota para o perfil
+        return <ProfileView />;
+      default:
+        return <DashboardView projects={initialProjectsData} onProjectSelect={handleSelectProject} />;
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-gray-100 font-sans">
+      {isLoading && <LoadingOverlay isLoading={isLoading} />} {/* Adiciona o overlay de carregamento */}
+      <Sidebar 
+        currentPage={currentPage} 
+        setCurrentPage={handleSetCurrentPage} 
+        selectedProject={selectedProject} 
+        onBack={handleBackToProjects} 
+      />
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header 
+            projects={initialProjectsData} 
+            onResultClick={handleSearchResultClick} 
+            onNavBack={handleNavBack}
+            onNavForward={handleNavForward}
+            canNavBack={historyIndex > 0}
+            canNavForward={historyIndex < history.length - 1}
+            onProfileClick={() => navigateTo('profile')}
+        />
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100">
+            {/* Adiciona Breadcrumbs aqui */}
+            <div className="p-4 md:p-8 pb-0">
+                <Breadcrumbs history={history} historyIndex={historyIndex} navigateTo={navigateTo} />
+            </div>
+            {renderPage()}
+        </main>
+      </div>
+    </div>
+  );
+}
