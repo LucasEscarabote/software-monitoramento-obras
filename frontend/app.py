@@ -1,4 +1,4 @@
-    import streamlit as st
+import streamlit as st
     import psycopg2 # Importar o driver do PostgreSQL
     from psycopg2.extras import RealDictCursor # Para retornar resultados como dicionários
     import os # Importar para acessar variáveis de ambiente
