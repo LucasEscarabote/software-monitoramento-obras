@@ -770,9 +770,6 @@ def update_team_member_db(id, updates):
                 "id": str(updated_id[0]),
             }
         return {"error": "Membro da equipe não encontrado."}
-    except psycopg2.errors.UniqueViolation:
-        conn.rollback()
-        return {"error": "Email já registrado."}
     except Exception as e:
         conn.rollback()
         return {"error": str(e)}
