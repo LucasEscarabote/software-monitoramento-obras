@@ -4,7 +4,8 @@ from psycopg2.extras import RealDictCursor  # Para retornar resultados como dici
 import os  # Importar para acessar variáveis de ambiente
 from dotenv import load_dotenv  # Para carregar .env localmente
 import bcrypt  # Para hash de senhas
-from PIL import Image  # Importar Image para o logo
+# Não precisamos mais de PIL.Image para o logo SVG com esta abordagem
+# from PIL import Image
 
 # Carrega as variáveis de ambiente do arquivo .env se rodando localmente
 try:
