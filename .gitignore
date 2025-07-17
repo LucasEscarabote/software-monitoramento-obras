@@ -1,0 +1,21 @@
+# Virtual Environment
+venv/
+*.pyc
+__pycache__/
+
+# Environment variables
+.env
+.flaskenv
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# IDEs
+.vscode/
+.idea/
+
+# Logs
+*.log
