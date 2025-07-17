@@ -4,6 +4,7 @@ from psycopg2.extras import RealDictCursor  # Para retornar resultados como dici
 import os  # Importar para acessar variáveis de ambiente
 from dotenv import load_dotenv  # Para carregar .env localmente
 import bcrypt  # Para hash de senhas
+from PIL import Image  # Importar Image para o logo
 
 # Carrega as variáveis de ambiente do arquivo .env se rodando localmente
 try:
@@ -1896,10 +1897,17 @@ if "show_register" not in st.session_state:
 def show_login_page():
     st.markdown('<div class="login-container">', unsafe_allow_html=True)
 
-    st.markdown(
-        '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
-        unsafe_allow_html=True,
-    )
+    # Adiciona o logo aqui
+    try:
+        # Substitua 'logo.png' pelo nome EXATO do arquivo do seu logo na pasta assets
+        logo = Image.open("assets/logo.png")  # ou logo.webp, logo.svg, logo.jpeg
+        st.image(logo, width=150)  # Ajuste a largura conforme necessário
+    except FileNotFoundError:
+        st.markdown(
+            '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
+            unsafe_allow_html=True,
+        )
+
     st.markdown(
         '<div class="logo-subtitle">Gerenciamento Inteligente de Projetos de Construção</div>',
         unsafe_allow_html=True,
@@ -1949,10 +1957,16 @@ def show_register_page():
         '<div class="login-container">', unsafe_allow_html=True
     )  # Reutilizando o estilo do container
 
-    st.markdown(
-        '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
-        unsafe_allow_html=True,
-    )
+    # Adiciona o logo aqui também
+    try:
+        logo = Image.open("assets/logo.png")  # ou logo.webp, logo.svg, logo.jpeg
+        st.image(logo, width=150)
+    except FileNotFoundError:
+        st.markdown(
+            '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
+            unsafe_allow_html=True,
+        )
+
     st.markdown(
         '<div class="logo-subtitle">Crie sua conta</div>', unsafe_allow_html=True
     )
