@@ -4,7 +4,7 @@ from psycopg2.extras import RealDictCursor  # Para retornar resultados como dici
 import os  # Importar para acessar variáveis de ambiente
 from dotenv import load_dotenv  # Para carregar .env localmente
 import bcrypt  # Para hash de senhas
-# Não precisamos mais de PIL.Image para o logo SVG com esta abordagem
+# NÃO precisamos mais de PIL.Image para o logo SVG com esta abordagem
 # from PIL import Image
 
 # Carrega as variáveis de ambiente do arquivo .env se rodando localmente
@@ -128,7 +128,6 @@ def _create_tables_if_not_exists(conn):
         );
         CREATE TABLE IF NOT EXISTS project_services (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            project_id UUID NOT NULL,
             name VARCHAR(255) NOT NULL,
             duration VARCHAR(50),
             start_date DATE NOT NULL,
@@ -1817,7 +1816,7 @@ def delete_project_team_member_db(project_id, team_member_id):
 st.set_page_config(
     page_title="Software de Monitoramento de Obras",
     page_icon="🏗️",
-    layout="centered",
+    layout="wide",  # Alterado para wide para melhor layout com duas colunas
     initial_sidebar_state="collapsed",
 )
 
@@ -1825,24 +1824,70 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+    /* Esconde o cabeçalho e rodapé padrão do Streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
     .stApp {
+        background-color: #1a1a1a; /* Fundo escuro padrão */
+        color: #f0f2f6; /* Cor do texto principal */
+        font-family: 'Poppins', sans-serif;
+        /* Removido background-image daqui para usar no container específico */
+    }
+
+    /* Container principal para dividir a tela em duas colunas */
+    .main-layout-container {
+        display: flex;
+        min-height: 100vh; /* Garante que o container ocupe toda a altura da tela */
+        width: 100vw; /* Ocupa toda a largura da viewport */
+        margin: -1rem; /* Remove margens padrão do Streamlit */
+        padding: 0; /* Remove padding padrão do Streamlit */
+    }
+
+    /* Coluna da esquerda para a imagem de fundo */
+    .image-column {
+        flex: 1; /* Ocupa metade do espaço */
         background-image: url("https://raw.githubusercontent.com/LucasEscarabote/software-monitoramento-obras/main/assets/login_background.jpg");
         background-size: cover;
         background-position: center;
         background-repeat: no-repeat;
-        background-attachment: fixed; /* Mantém a imagem fixa ao rolar */
-        color: #f0f2f6; /* Cor do texto principal */
-        font-family: 'Poppins', sans-serif;
+        background-attachment: fixed;
+        border-top-right-radius: 15px; /* Borda arredondada superior direita */
+        border-bottom-right-radius: 15px; /* Borda arredondada inferior direita */
+        overflow: hidden; /* Garante que a imagem não vaze */
     }
+
+    /* Coluna da direita para o formulário de login */
+    .login-form-column {
+        flex: 1; /* Ocupa metade do espaço */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: white; /* Fundo branco para a coluna do formulário */
+        padding: 20px;
+    }
+
+    .login-container {
+        background-color: white; /* Fundo branco para o container de login */
+        padding: 40px;
+        border-radius: 15px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1); /* Sombra mais suave */
+        max-width: 450px;
+        width: 100%; /* Ocupa a largura total da coluna */
+        text-align: center;
+        color: #333333; /* Cor do texto padrão para o container branco */
+    }
+
     .stTextInput > div > div > input {
-        background-color: rgba(51, 51, 51, 0.7); /* Fundo dos campos de input com opacidade */
-        color: #f0f2f6;
+        background-color: #f0f2f6; /* Fundo dos campos de input mais claro */
+        color: #333333;
         border-radius: 8px;
-        border: 1px solid #555555;
+        border: 1px solid #cccccc; /* Borda mais clara */
         padding: 10px;
     }
     .stTextInput > label {
-        color: #f0f2f6; /* Cor dos rótulos dos campos */
+        color: #333333; /* Cor dos rótulos dos campos */
     }
     .stButton > button {
         background-color: #CF1219; /* Cor de destaque para botões */
@@ -1859,24 +1904,19 @@ st.markdown(
     .stMarkdown h1, .stMarkdown h2, .stMarkdown h3 {
         color: #CF1219; /* Títulos em cor de destaque */
     }
-    .login-container, .main-app-container {
-        background-color: rgba(42, 42, 42, 0.85); /* Fundo do container de login com opacidade */
-        padding: 40px;
-        border-radius: 15px;
-        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-        max-width: 450px;
-        margin: 50px auto;
-        text-align: center;
-        backdrop-filter: blur(5px); /* Efeito de desfoque no fundo do container */
+    .logo-img {
+        max-width: 150px; /* Ajuste o tamanho do logo */
+        height: auto;
+        margin-bottom: 20px;
     }
-    .logo-text {
+    .logo-text { /* Mantido para fallback */
         color: #CF1219;
         font-size: 3em;
         font-weight: bold;
         margin-bottom: 20px;
     }
     .logo-subtitle {
-        color: #f0f2f6;
+        color: #555555; /* Subtítulo mais suave no fundo claro */
         font-size: 1.2em;
         margin-bottom: 30px;
     }
@@ -1896,18 +1936,26 @@ if "show_register" not in st.session_state:
 
 # --- Função para Exibir a Tela de Login ---
 def show_login_page():
-    st.markdown('<div class="login-container">', unsafe_allow_html=True)
+    # Estrutura de duas colunas para o layout da imagem de fundo e formulário
+    st.markdown('<div class="main-layout-container">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="image-column"></div>', unsafe_allow_html=True
+    )  # Coluna da imagem
 
-    # Adiciona o logo aqui
-    try:
-        # Substitua 'logo.png' pelo nome EXATO do arquivo do seu logo na pasta assets
-        logo = Image.open("assets/logo.svg")  # AGORA USANDO LOGO.SVG
-        st.image(logo, width=150)  # Ajuste a largura conforme necessário
-    except FileNotFoundError:
-        st.markdown(
-            '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
-            unsafe_allow_html=True,
-        )
+    st.markdown(
+        '<div class="login-form-column">', unsafe_allow_html=True
+    )  # Coluna do formulário
+    st.markdown(
+        '<div class="login-container">', unsafe_allow_html=True
+    )  # Container do formulário dentro da coluna
+
+    # Adiciona o logo aqui (SVG injetado diretamente)
+    # Caminho para o arquivo SVG no GitHub
+    logo_svg_url = "https://raw.githubusercontent.com/LucasEscarabote/software-monitoramento-obras/main/assets/logo.svg"
+    st.markdown(
+        f'<img src="{logo_svg_url}" class="logo-img" alt="Logo">',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         '<div class="logo-subtitle">Gerenciamento Inteligente de Projetos de Construção</div>',
@@ -1949,24 +1997,31 @@ def show_login_page():
         unsafe_allow_html=True,
     )
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha login-container
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha login-form-column
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha main-layout-container
 
 
 # --- Função para Exibir a Tela de Registro ---
 def show_register_page():
+    st.markdown('<div class="main-layout-container">', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="image-column"></div>', unsafe_allow_html=True
+    )  # Coluna da imagem
+
+    st.markdown(
+        '<div class="login-form-column">', unsafe_allow_html=True
+    )  # Coluna do formulário
     st.markdown(
         '<div class="login-container">', unsafe_allow_html=True
-    )  # Reutilizando o estilo do container
+    )  # Container do formulário dentro da coluna
 
-    # Adiciona o logo aqui também
-    try:
-        logo = Image.open("assets/logo.svg")  # AGORA USANDO LOGO.SVG
-        st.image(logo, width=150)
-    except FileNotFoundError:
-        st.markdown(
-            '<div class="logo-text">Software<span style="color: #f0f2f6;">Obras</span></div>',
-            unsafe_allow_html=True,
-        )
+    # Adiciona o logo aqui (SVG injetado diretamente)
+    logo_svg_url = "https://raw.githubusercontent.com/LucasEscarabote/software-monitoramento-obras/main/assets/logo.svg"
+    st.markdown(
+        f'<img src="{logo_svg_url}" class="logo-img" alt="Logo">',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         '<div class="logo-subtitle">Crie sua conta</div>', unsafe_allow_html=True
@@ -2003,7 +2058,9 @@ def show_register_page():
         st.session_state.show_register = False
         st.rerun()
 
-    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha login-container
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha login-form-column
+    st.markdown("</div>", unsafe_allow_html=True)  # Fecha main-layout-container
 
 
 # --- Função para Exibir a Página Principal do Aplicativo (Após Login) ---
